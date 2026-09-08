@@ -1,0 +1,14 @@
+# secrets / local auth
+.env
+.cache
+
+# local database
+data/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# os
+.DS_Store
