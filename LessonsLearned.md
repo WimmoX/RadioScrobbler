@@ -130,3 +130,24 @@ correct, een paar minuten later leverde exact dezelfde zoekopdracht andere
 serverside-ranking bij Spotify zelf voor dunbezaaide metadata. Niet iets om
 tegen te vechten met nog meer logica; gewoon zo'n nummer overslaan en een
 ander kandidaat-nummer proberen is prima.
+
+**Vervolg op Les 7 — bandnamen mét "&"/"/" erin werden onterecht als twee
+artiesten gesplitst.** Bekende nummers als "Echo & The Bunnymen - The
+Killing Moon" en "AC/DC - You Shook Me All Night Long" faalden, want
+`_ARTIST_SEPARATORS` splitste "Echo & The Bunnymen" op de "&" (bedoeld voor
+featuring-credits als "Bonobo & Joy Crookes") tot "Echo" + "The Bunnymen" —
+geen van beide matcht Spotify's ene artiest "Echo & the Bunnymen". Zelfde
+verhaal voor "/" bij "AC/DC". Los daarvan faalden ook "Bangles - Walk Like
+An Egyptian" en "Stranglers - Golden Brown", omdat Spotify ze credit als
+"The Bangles"/"The Stranglers" en een verschil in een lidwoord de artiest-
+match liet mislukken. Twee fixes in `sync_playlist.py`:
+1. `_artist_matches()` checkt nu zowel de losse delen (voor échte collabs)
+   als de hele, ongesplitste naam (voor bandnamen met "&"/"/" erin) — wat
+   matcht met Spotify, telt.
+2. `_normalize_artist()` strip een leidend "The " voor de vergelijking.
+Getest tegen alle 80 bestaande matches: 12 eerdere "geen match"-gevallen nu
+wél gevonden, geen enkele regressie (ook de eerder gefixte collab-gevallen
+als "Bonobo & Joy Crookes" bleven goed werken).
+→ Bij "splits op scheidingsteken"-logica: vergeet niet dat het scheidings-
+teken soms gewoon *onderdeel* is van de ene, ongesplitste naam. Check beide
+interpretaties in plaats van te moeten kiezen welke van tevoren.

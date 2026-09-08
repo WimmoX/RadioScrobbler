@@ -101,15 +101,21 @@ _ARTIST_SEPARATORS = re.compile(r"\s*(?:&|,|/|\bfeat\.?\b|\bft\.?\b|\bx\b)\s*", 
 def _normalize_artist(name: str) -> str:
     """'Fischer-Z' and 'Fischer Z' (radio vs Spotify's stylisation) should be
     treated as the same artist, so strip everything but letters/digits
-    (after transliterating accents, not just discarding them)."""
-    return re.sub(r"[^a-z0-9]", "", _strip_accents(name.lower()))
+    (after transliterating accents, not just discarding them). Also drop a
+    leading 'The ' ('Bangles' vs Spotify's 'The Bangles')."""
+    name = re.sub(r"^the\s+", "", _strip_accents(name.lower()))
+    return re.sub(r"[^a-z0-9]", "", name)
 
 
 def _artist_matches(item: dict, artist: str) -> bool:
     # Radio sources often credit collabs as one string ("Bonobo & Joy Crookes"),
     # while Spotify lists each as a separate artist on the track — split ours
-    # the same way and match if any name overlaps.
+    # the same way and match if any part overlaps. But "&" and "/" can also be
+    # part of a single act's actual name ("Echo & the Bunnymen", "AC/DC"), so
+    # also check the whole un-split name — whichever form lines up with what
+    # Spotify has wins.
     searched = {_normalize_artist(n) for n in _ARTIST_SEPARATORS.split(artist) if n.strip()}
+    searched.add(_normalize_artist(artist))
     on_track = {_normalize_artist(a["name"]) for a in item["artists"]}
     return bool(searched & on_track)
 
