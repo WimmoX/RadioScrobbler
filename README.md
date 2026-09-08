@@ -8,8 +8,8 @@ zero effort on your end.
 
 Some radio stations play exactly your kind of music (e.g. [Pinguin
 Classics](https://pinguinradio.com/playlist/pinguinclassic),
-[KINK](https://kink.nl/), [BBC Radio 6 Music](https://www.bbc.co.uk/6music))
-— just with ads, jingles, and no "save this for later" button.
+[KINK](https://kink.nl/)) — just with ads, jingles, and no "save this for
+later" button.
 RadioScrobbler fixes that:
 
 1. **Scrapes** what actually got played on a station recently.
@@ -23,7 +23,7 @@ You just listen to the playlist from now on, not the radio. 🎧
 
 - 🔁 **Multiple stations at once** — each with its own playlist (see
   `stations.py` for the current list: Pinguin Classics, KINK Classics,
-  KINK Distortion, BBC Radio 6 Music).
+  KINK Distortion).
 - 🧠 **Smart, not wasteful** — every track only ever gets looked up on
   Spotify once (local cache), and only the *diff* gets sent to Spotify
   instead of rebuilding the whole playlist every run.

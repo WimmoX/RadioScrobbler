@@ -8,5 +8,4 @@ STATIONS = {
     "pingclass": "Penguin Classics",
     "kinkclassics": "KINK Classics",
     "kinkdistortion": "KINK Distortion",
-    "uk/bbcradio6": "BBC Radio 6 Music",
 }

@@ -32,7 +32,6 @@ Bekende zenders (`stations.py`):
 | Pinguin Classics | `pingclass` |
 | KINK Classics | `kinkclassics` |
 | KINK Distortion | `kinkdistortion` |
-| BBC Radio 6 Music | `uk/bbcradio6` |
 
 OnlineRadioBox groepeert zenders per land in de URL (`/nl/...`, `/uk/...`,
 etc.). Een station-ID is dus óf een kale slug (dan gaan we uit van `nl`), óf
@@ -102,7 +101,14 @@ aanlopen.
   ook op andere zenders draaiden zijn blijven staan). KINK Classics en KINK
   Distortion blijven gewoon meedoen — dit was specifiek de brede "KINK
   Radio"-zender, niet het hele KINK-merk.
-- Scrapen (`scrape.py`) getest en werkt voor alle 4 resterende zenders,
+- **BBC Radio 6 Music is ook uit het systeem gehaald** op verzoek (muziek
+  beviel niet) — zelfde behandeling: uit `stations.py`, alle `plays`-data
+  gewist (2064 rows), en de 24 nummers die *uitsluitend* via deze zender in
+  "RadioScrobbled" stonden eruit gehaald (6 bleven staan, want die draaiden
+  ook op Pinguin Classics/KINK Classics). Dit was tegelijk de enige zender
+  met een niet-`nl`-locale (`uk/bbcradio6`); de multi-locale support in
+  `scraper.py` blijft gewoon bestaan voor een eventuele toekomstige zender.
+- Scrapen (`scrape.py`) getest en werkt voor de 3 resterende zenders,
   dedup bevestigd over meerdere runs.
 - `sync_playlist.py` **werkt nu end-to-end, bevestigd in productie**: eerste
   echte playlist ("RadioScrobbled", een handmatige top-30-selectie over alle

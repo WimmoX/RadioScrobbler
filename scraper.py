@@ -80,8 +80,7 @@ def get_recent_plays(station: str, days: int = DAYS_AVAILABLE) -> list[Play]:
     """Return plays for the last `days` days (max 7, OnlineRadioBox's own limit).
 
     `station` is either a bare OnlineRadioBox slug (assumes the 'nl' locale)
-    or 'locale/slug' for stations listed under another country, e.g.
-    'uk/bbcradio6'.
+    or 'locale/slug' for stations listed under another country.
     """
     days = min(days, DAYS_AVAILABLE)
     all_plays = []
