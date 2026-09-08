@@ -6,7 +6,6 @@ OnlineRadioBox) or 'locale/slug' for stations listed under another country.
 
 STATIONS = {
     "pingclass": "Penguin Classics",
-    "kink": "KINK Radio",
     "kinkclassics": "KINK Classics",
     "kinkdistortion": "KINK Distortion",
     "uk/bbcradio6": "BBC Radio 6 Music",

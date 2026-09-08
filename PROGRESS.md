@@ -30,7 +30,6 @@ Bekende zenders (`stations.py`):
 | Zender | Station-ID |
 |---|---|
 | Pinguin Classics | `pingclass` |
-| KINK Radio | `kink` |
 | KINK Classics | `kinkclassics` |
 | KINK Distortion | `kinkdistortion` |
 | BBC Radio 6 Music | `uk/bbcradio6` |
@@ -95,19 +94,34 @@ Zie `LessonsLearned.md` voor opgeloste problemen (rate limits, dedup-bugs,
 scraping-aanpak) — apart bestand zodat we niet steeds tegen hetzelfde
 aanlopen.
 
-## Status (2026-09-07/08)
-- Scrapen (`scrape.py`) getest en werkt voor alle 4 zenders, dedup bevestigd
-  over meerdere runs.
-- `sync_playlist.py` en `resync_playlist.py` gebouwd (incl. diff-gebaseerde
-  updates, blocklist, liked-bescherming) maar **nog niet end-to-end getest**
-  — geblokkeerd door de rate-limit-lockout van Les 1 (verwacht opgeheven rond
-  2026-09-08 avond).
+## Status (2026-09-08)
+- **KINK Radio (`kink`) is uit het systeem gehaald** op verzoek (muzieksmaak
+  paste niet) — verwijderd uit `stations.py`, alle `plays`-data voor die
+  zender gewist, en de 14 nummers die *uitsluitend* via KINK Radio in
+  "RadioScrobbled" terechtkwamen zijn er ook weer uitgehaald (nummers die
+  ook op andere zenders draaiden zijn blijven staan). KINK Classics en KINK
+  Distortion blijven gewoon meedoen — dit was specifiek de brede "KINK
+  Radio"-zender, niet het hele KINK-merk.
+- Scrapen (`scrape.py`) getest en werkt voor alle 4 resterende zenders,
+  dedup bevestigd over meerdere runs.
+- `sync_playlist.py` **werkt nu end-to-end, bevestigd in productie**: eerste
+  echte playlist ("RadioScrobbled", een handmatige top-30-selectie over alle
+  zenders behalve KINK Distortion) succesvol aangemaakt en gevuld op Spotify.
+  Onderweg nog twee bugs gevonden en gefixt die alleen in de praktijk (niet
+  in code review) aan het licht kwamen: spotipy's verborgen interne retry
+  (Les 5) en het door Spotify geblokkeerde `user_playlist_create()`-endpoint
+  (Les 6). `resync_playlist.py` is met dezelfde onderliggende functies
+  gebouwd maar nog niet apart end-to-end getest.
+- Matching-logica in `find_track_uri()`/`_best_candidate()` flink verbeterd
+  na een echte misser (Royal Blood) en enkele valse afwijzingen (accenten,
+  Spotify-titeltoevoegingen zoals "(feat. X)" of "- Single Version") — zie
+  Les 7 en het vervolg daarop in `LessonsLearned.md`. "RadioScrobbled" staat
+  nu op 30 correct gematchte nummers.
 - Nog niet gebouwd: Level 2 (dagdelen), Docker/UI, en de "Verbannen Nummers"-feature
   (zie hieronder).
-- `fetch_audio_features.py` gebouwd en getest (handmatig, met tijdelijke
-  testregels) — werkt en cachet correct. Kan pas écht iets doen zodra
-  `sync_playlist.py` voor het eerst tracks aan `spotify_matches` heeft
-  toegevoegd.
+- `fetch_audio_features.py` gebouwd en getest — werkt en cachet correct. Nu
+  ook echt bruikbaar: `spotify_matches` bevat sinds vandaag voor het eerst
+  échte matches.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren

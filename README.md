@@ -22,8 +22,8 @@ You just listen to the playlist from now on, not the radio. 🎧
 ## ✨ Features
 
 - 🔁 **Multiple stations at once** — each with its own playlist (see
-  `stations.py` for the current list: Pinguin Classics, KINK Radio, KINK
-  Classics, KINK Distortion, BBC Radio 6 Music).
+  `stations.py` for the current list: Pinguin Classics, KINK Classics,
+  KINK Distortion, BBC Radio 6 Music).
 - 🧠 **Smart, not wasteful** — every track only ever gets looked up on
   Spotify once (local cache), and only the *diff* gets sent to Spotify
   instead of rebuilding the whole playlist every run.

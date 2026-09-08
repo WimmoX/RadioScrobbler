@@ -8,6 +8,7 @@ import time
 
 MAX_RETRIES = 5
 REQUEST_DELAY = 0.15  # seconds to wait after every successful call
+MAX_WAIT_SECONDS = 60  # don't silently block longer than this on one retry
 
 
 class RateLimited(Exception):
@@ -26,6 +27,12 @@ def call_with_retry(attempt, max_retries: int = MAX_RETRIES, delay: float = REQU
             time.sleep(delay)
             return result
         except RateLimited as e:
+            if e.wait_seconds > MAX_WAIT_SECONDS:
+                raise RuntimeError(
+                    f"Rate limited for {e.wait_seconds}s, which is longer than the "
+                    f"{MAX_WAIT_SECONDS}s we're willing to silently wait. Stopping instead "
+                    f"of blocking — try again later."
+                ) from e
             print(f"  rate limited, waiting {e.wait_seconds}s...")
             time.sleep(e.wait_seconds)
     raise RuntimeError(f"Gave up after {max_retries} retries calling {attempt}")
