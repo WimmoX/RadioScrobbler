@@ -198,3 +198,24 @@ def get_audio_features(conn: sqlite3.Connection, spotify_uri: str) -> dict | Non
         "SELECT * FROM audio_features WHERE spotify_uri = ?", (spotify_uri,),
     ).fetchone()
     return dict(zip(AUDIO_FEATURE_COLUMNS, row)) if row else None
+
+
+def delete_station_plays(conn: sqlite3.Connection, station_slug: str) -> int:
+    cursor = conn.execute("DELETE FROM plays WHERE station_slug = ?", (station_slug,))
+    conn.commit()
+    return cursor.rowcount
+
+
+def track_source_stations(conn: sqlite3.Connection, artist: str, title: str) -> list[str]:
+    """Which stations (still) have this artist/title in their play history."""
+    rows = conn.execute(
+        "SELECT DISTINCT station_slug FROM plays WHERE LOWER(artist) = ? AND LOWER(title) = ?",
+        (artist.lower(), title.lower()),
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def playlist_keys(conn: sqlite3.Connection) -> list[str]:
+    """Every distinct playlist we're locally tracking the contents of."""
+    rows = conn.execute("SELECT DISTINCT station_slug FROM playlist_tracks").fetchall()
+    return [row[0] for row in rows]

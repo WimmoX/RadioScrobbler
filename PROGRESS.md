@@ -76,6 +76,18 @@ Tabellen:
   Af en toe handmatig draaien, na eigen wijzigingen in Spotify.
 - **`stations.py`** — mapping van zender-slug naar playlistnaam, gedeeld door
   de scripts.
+- **`add_station.py <zoekterm> <playlistnaam>`** — doorzoekt OnlineRadioBox,
+  laat je een kandidaat kiezen, en voegt die toe aan `stations.py`.
+- **`remove_station.py <station-id>`** — het spiegelbeeld: haalt de zender
+  uit `stations.py`, wist de `plays`-historie, en verwijdert uit élke
+  gevolgde playlist (`playlist_tracks`) de nummers die *uitsluitend* van die
+  zender kwamen (nummers die ook op een andere zender draaien blijven
+  staan). Dit was tot nu toe telkens een handmatig ad-hoc scriptje (zie de
+  KINK Radio- en BBC Radio 6-verwijderingen); nu een herbruikbaar commando.
+  Getest met een volledige round-trip (zender toevoegen → scrapen → nummer
+  in de live playlist zetten → weer verwijderen) — `stations.py` kwam er
+  exact hetzelfde uit, en het testnummer werd correct uit de live playlist
+  gehaald.
 - **`fetch_audio_features.py`** — haalt voor alle al-gematchte Spotify-tracks
   (uit `spotify_matches`) de ReccoBeats-kenmerken op (energy, valence,
   danceability, tempo, ...) en cachet ze in `audio_features`. Geen API-key of

@@ -81,6 +81,17 @@ cp .env.example .env   # fill in your Spotify app credentials (see below)
 Run `scrape.py` regularly (e.g. daily) — most stations only expose 7 days of
 history, so the more often you scrape, the longer your own history grows.
 
+### Adding or removing a station
+
+```bash
+# Search OnlineRadioBox and add the station you pick to stations.py
+.venv/bin/python3 add_station.py "kink" "KINK Radio"
+
+# Remove it again: drops it from config, wipes its history, and pulls out
+# any playlist tracks that came exclusively from it (shared tracks stay)
+.venv/bin/python3 remove_station.py kink
+```
+
 ## 🧩 How it fits together
 
 | Script | Does what | Talks to Spotify? |
@@ -89,6 +100,8 @@ history, so the more often you scrape, the longer your own history grows.
 | `sync_playlist.py` | Matches tracks, computes the diff, updates the playlist | ✅ |
 | `resync_playlist.py` | Reconciles the local cache with the real playlist contents | ✅ |
 | `fetch_audio_features.py` | Fetches energy/valence/etc. via ReccoBeats | ❌ (ReccoBeats instead) |
+| `add_station.py` | Looks up a station on OnlineRadioBox, adds it to `stations.py` | ❌ |
+| `remove_station.py` | Removes a station from config + history + any playlist tracks that came exclusively from it | ✅ |
 
 Everything runs on a local SQLite database (`db.py`) that tracks: which
 tracks aired when, which Spotify match belongs to them, what's (as far as we
