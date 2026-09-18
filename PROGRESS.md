@@ -52,7 +52,7 @@ Losse database i.p.v. rechtstreeks tegen Spotify praten, om drie redenen:
    te sturen in plaats van steeds de hele boel te herbouwen.
 
 Tabellen:
-- `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY).
+- `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie Les 8.
 - `spotify_matches` — cache van artiest+titel → Spotify-URI (of `NULL` = bewust "geen match gevonden", ook gecached zodat we dat niet opnieuw proberen).
 - `playlists` — station_slug → Spotify playlist-ID (voorkomt dat we elke run opnieuw playlists moeten opzoeken).
 - `playlist_tracks` — wat we denken dat er (per zender) in de Spotify-playlist staat.
@@ -140,6 +140,12 @@ aanlopen.
 - `fetch_audio_features.py` gebouwd en getest — werkt en cachet correct. Nu
   ook echt bruikbaar: `spotify_matches` bevat sinds vandaag voor het eerst
   échte matches.
+- **2026-09-18**: `add_station.py`/`remove_station.py` toegevoegd (zender
+  toevoegen/verwijderen is nu een commando i.p.v. handwerk). Daarnaast
+  `plays` uitgebreid met `daynr`/`hr`/`daypart` (generated columns,
+  afgeleid van `played_at`) als basis voor Level 2 (dagdeel-playlists) —
+  zie hierboven en Les 8. Migratie getest tegen de echte database, incl.
+  een bug gevonden en gefixt vóórdat 'ie live kon gaan (zie Les 8).
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren

@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS plays (
     artist TEXT NOT NULL,
     title TEXT NOT NULL,
     played_at TEXT NOT NULL,
+    -- daynr/hr/daypart are derived straight from played_at (never stored
+    -- separately), so they can never drift out of sync with it and every
+    -- existing row gets a correct value for free, with no backfill script.
+    daynr INTEGER GENERATED ALWAYS AS (CAST(strftime('%u', played_at) AS INTEGER)) VIRTUAL,
+    hr INTEGER GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER)) VIRTUAL,
+    daypart INTEGER GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER) / 6) VIRTUAL,
     PRIMARY KEY (station_slug, artist, title, played_at)
 );
 
@@ -63,12 +69,39 @@ CREATE TABLE IF NOT EXISTS audio_features (
 """
 
 
+_PLAYS_MIGRATIONS = {
+    "daynr": "ALTER TABLE plays ADD COLUMN daynr INTEGER "
+             "GENERATED ALWAYS AS (CAST(strftime('%u', played_at) AS INTEGER)) VIRTUAL",
+    "hr": "ALTER TABLE plays ADD COLUMN hr INTEGER "
+          "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER)) VIRTUAL",
+    "daypart": "ALTER TABLE plays ADD COLUMN daypart INTEGER "
+               "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER) / 6) VIRTUAL",
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns to a `plays` table that pre-dates them. SQLite can't add a
+    STORED generated column via ALTER TABLE (only at CREATE TABLE time), so
+    an existing database gets VIRTUAL columns added on top instead — same
+    values, computed on read rather than on write."""
+    # table_xinfo (not table_info!) is needed here — table_info silently
+    # omits generated/virtual columns, which would make this "add if
+    # missing" check always think they're missing and crash every
+    # subsequent connect() with "duplicate column name".
+    existing = {row[1] for row in conn.execute("PRAGMA table_xinfo(plays)").fetchall()}
+    for column, statement in _PLAYS_MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(statement)
+    conn.commit()
+
+
 def connect(db_path: str) -> sqlite3.Connection:
     parent = os.path.dirname(db_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 

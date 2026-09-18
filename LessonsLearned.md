@@ -151,3 +151,26 @@ als "Bonobo & Joy Crookes" bleven goed werken).
 → Bij "splits op scheidingsteken"-logica: vergeet niet dat het scheidings-
 teken soms gewoon *onderdeel* is van de ene, ongesplitste naam. Check beide
 interpretaties in plaats van te moeten kiezen welke van tevoren.
+
+**Les 8 — `PRAGMA table_info` verbergt generated/virtual kolommen, wat een
+migratie-check in een oneindige crash-loop had kunnen laten lopen.** Bij het
+toevoegen van `daynr`/`hr`/`daypart` als *generated columns* (afgeleid van
+`played_at`, zie hierboven) bleek SQLite geen `STORED` generated column toe
+te staan via `ALTER TABLE` op een bestaande tabel (alleen bij het aanmaken
+van een nieuwe tabel) — opgelost door `VIRTUAL` te gebruiken (berekend bij
+het lezen i.p.v. opgeslagen, verwaarloosbaar traag op onze schaal), wat wél
+via `ALTER TABLE` mag. Grotere valkuil: de idempotentie-check in
+`_migrate()` (die checkt of een kolom al bestaat voor die 'm toevoegt)
+gebruikte `PRAGMA table_info(plays)` — en die geeft generated/virtual
+kolommen simpelweg niet terug, ook al bestaan ze wél en werken ze prima in
+query's. Daardoor dacht de check bij elke volgende `connect()`-aanroep dat
+de kolommen nog ontbraken, en probeerde ze opnieuw toe te voegen —
+`sqlite3.OperationalError: duplicate column name`, bij *elk* script dat de
+database opent. Fix: `PRAGMA table_xinfo(plays)` gebruiken, die toont
+generated/hidden kolommen wél. Dit werd alleen gevonden omdat ik expliciet
+`connect()` een tweede keer testte na de migratie — de eerste keer werkte
+feilloos, dus zonder die tweede test was dit pas bij de volgende scriptrun
+(door de gebruiker, niet door mij) aan het licht gekomen.
+→ Test een migratie altijd door de verbindingscode minstens twee keer
+achter elkaar te draaien, niet maar één keer — "het werkte de eerste keer"
+zegt niets over idempotentie.
