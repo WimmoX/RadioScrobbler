@@ -1,6 +1,6 @@
 """Rebuild a Spotify playlist from recently played tracks in the local database.
 
-Only tracks not already in the spotify_matches cache trigger a Spotify Search
+Only tracks not already resolved in track_match trigger a Spotify Search
 API call, so repeated runs stay cheap.
 """
 import argparse
@@ -146,14 +146,17 @@ def _best_candidate(items: list, artist: str, title: str) -> dict | None:
     return best
 
 
-def find_track_uri(sp: spotipy.Spotify, artist: str, title: str) -> str | None:
+def find_track_match(sp: spotipy.Spotify, artist: str, title: str) -> dict | None:
+    """Returns the best-matching Spotify track item (uri/name/artists), or None.
+    Callers that need the normalized (title, artist list) for db.save_match
+    should use item["name"] / [a["name"] for a in item["artists"]] — that's
+    Spotify's own structured data, not our search-query text."""
     results = _call_with_retry(sp.search, q=f"artist:{artist} track:{title}", type="track", limit=5)
     items = results["tracks"]["items"]
     if not items:
         results = _call_with_retry(sp.search, q=f"{artist} {title}", type="track", limit=5)
         items = results["tracks"]["items"]
-    best = _best_candidate(items, artist, title)
-    return best["uri"] if best else None
+    return _best_candidate(items, artist, title)
 
 
 def filter_liked(sp: spotipy.Spotify, uris: list[str]) -> set[str]:
@@ -218,8 +221,11 @@ def main():
     for artist, title in tracks:
         is_cached, uri = db.get_cached_match(conn, artist, title)
         if not is_cached:
-            uri = find_track_uri(sp, artist, title)
-            db.save_match(conn, artist, title, uri)
+            match = find_track_match(sp, artist, title)
+            uri = match["uri"] if match else None
+            db.save_match(conn, artist, title, uri,
+                           match["name"] if match else None,
+                           [a["name"] for a in match["artists"]] if match else None)
             new_lookups += 1
         if uri:
             desired_uris.add(uri)

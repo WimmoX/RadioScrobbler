@@ -24,12 +24,37 @@ CREATE TABLE IF NOT EXISTS plays (
     PRIMARY KEY (station_slug, artist, title, played_at)
 );
 
-CREATE TABLE IF NOT EXISTS spotify_matches (
-    artist TEXT NOT NULL,
+-- Normalized matching layer, replacing the old flat spotify_matches table
+-- (still present on existing databases until migrate_normalize_matches.py
+-- has been run — see LessonsLearned.md). track_match is the bridge between
+-- plays' free-text (artist, title) and a resolved track: plays itself stays
+-- plain text (it's an immutable scrape log, human-readable by construction,
+-- and deliberately not FK'd to a track so scraping never has to wait on
+-- matching), but tracks/artists can now represent real multi-artist data
+-- instead of us re-splitting a credit string every time.
+CREATE TABLE IF NOT EXISTS artists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    spotify_uri TEXT,
+    spotify_uri TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS track_artists (
+    track_id INTEGER NOT NULL REFERENCES tracks(id),
+    artist_id INTEGER NOT NULL REFERENCES artists(id),
+    PRIMARY KEY (track_id, artist_id)
+);
+
+CREATE TABLE IF NOT EXISTS track_match (
+    artist_text TEXT NOT NULL,
+    title_text TEXT NOT NULL,
+    track_id INTEGER REFERENCES tracks(id),
     matched_at TEXT NOT NULL,
-    PRIMARY KEY (artist, title)
+    PRIMARY KEY (artist_text, title_text)
 );
 
 CREATE TABLE IF NOT EXISTS playlists (
@@ -124,7 +149,8 @@ def recent_unique_tracks(conn: sqlite3.Connection, station_slug: str, since: dat
 def get_cached_match(conn: sqlite3.Connection, artist: str, title: str) -> tuple[bool, str | None]:
     """Return (is_cached, spotify_uri). spotify_uri is None if cached as 'no match found'."""
     row = conn.execute(
-        "SELECT spotify_uri FROM spotify_matches WHERE artist = ? AND title = ?",
+        "SELECT t.spotify_uri FROM track_match tm LEFT JOIN tracks t ON t.id = tm.track_id "
+        "WHERE tm.artist_text = ? AND tm.title_text = ?",
         (artist.lower(), title.lower()),
     ).fetchone()
     if row is None:
@@ -132,12 +158,53 @@ def get_cached_match(conn: sqlite3.Connection, artist: str, title: str) -> tuple
     return True, row[0]
 
 
-def save_match(conn: sqlite3.Connection, artist: str, title: str, spotify_uri: str | None) -> None:
+def get_or_create_artist(conn: sqlite3.Connection, name: str) -> int:
+    row = conn.execute("SELECT id FROM artists WHERE name = ?", (name,)).fetchone()
+    if row:
+        return row[0]
+    return conn.execute("INSERT INTO artists (name) VALUES (?)", (name,)).lastrowid
+
+
+def get_or_create_track(conn: sqlite3.Connection, spotify_uri: str, title: str, artist_names: list[str]) -> int:
+    row = conn.execute("SELECT id FROM tracks WHERE spotify_uri = ?", (spotify_uri,)).fetchone()
+    if row:
+        track_id = row[0]
+    else:
+        track_id = conn.execute(
+            "INSERT INTO tracks (title, spotify_uri) VALUES (?, ?)", (title, spotify_uri),
+        ).lastrowid
+    for name in artist_names:
+        artist_id = get_or_create_artist(conn, name)
+        conn.execute(
+            "INSERT OR IGNORE INTO track_artists (track_id, artist_id) VALUES (?, ?)", (track_id, artist_id),
+        )
+    return track_id
+
+
+def save_match(
+    conn: sqlite3.Connection, artist: str, title: str,
+    spotify_uri: str | None, track_title: str | None = None, artist_names: list[str] | None = None,
+) -> None:
+    """`track_title`/`artist_names` are Spotify's own (title, artist list) for the
+    matched track — pass None/omit when spotify_uri is None (no match found)."""
+    track_id = None
+    if spotify_uri:
+        track_id = get_or_create_track(conn, spotify_uri, track_title or title, artist_names or [artist])
     conn.execute(
-        "INSERT OR REPLACE INTO spotify_matches (artist, title, spotify_uri, matched_at) VALUES (?, ?, ?, ?)",
-        (artist.lower(), title.lower(), spotify_uri, datetime.now().isoformat()),
+        "INSERT OR REPLACE INTO track_match (artist_text, title_text, track_id, matched_at) VALUES (?, ?, ?, ?)",
+        (artist.lower(), title.lower(), track_id, datetime.now().isoformat()),
     )
     conn.commit()
+
+
+def get_track_artists(conn: sqlite3.Connection, spotify_uri: str) -> list[str]:
+    rows = conn.execute("""
+        SELECT a.name FROM tracks t
+        JOIN track_artists ta ON ta.track_id = t.id
+        JOIN artists a ON a.id = ta.artist_id
+        WHERE t.spotify_uri = ?
+    """, (spotify_uri,)).fetchall()
+    return [row[0] for row in rows]
 
 
 def get_playlist_id(conn: sqlite3.Connection, station_slug: str) -> str | None:
@@ -201,10 +268,9 @@ def add_to_blocklist(conn: sqlite3.Connection, station_slug: str, uris: list[str
 def get_uris_missing_audio_features(conn: sqlite3.Connection) -> list[str]:
     """Spotify URIs we've matched a track to, but haven't fetched ReccoBeats features for yet."""
     rows = conn.execute("""
-        SELECT DISTINCT sm.spotify_uri
-        FROM spotify_matches sm
-        LEFT JOIN audio_features af ON af.spotify_uri = sm.spotify_uri
-        WHERE sm.spotify_uri IS NOT NULL AND af.spotify_uri IS NULL
+        SELECT t.spotify_uri FROM tracks t
+        LEFT JOIN audio_features af ON af.spotify_uri = t.spotify_uri
+        WHERE af.spotify_uri IS NULL
     """).fetchall()
     return [row[0] for row in rows]
 
@@ -237,6 +303,18 @@ def delete_station_plays(conn: sqlite3.Connection, station_slug: str) -> int:
     cursor = conn.execute("DELETE FROM plays WHERE station_slug = ?", (station_slug,))
     conn.commit()
     return cursor.rowcount
+
+
+def get_match_text(conn: sqlite3.Connection, spotify_uri: str) -> tuple[str, str] | None:
+    """One (artist_text, title_text) that resolved to this track, for reverse lookups
+    (e.g. 'which stations played this URI?'). Picks arbitrarily if several text
+    variants matched the same track — same limitation the old schema had."""
+    row = conn.execute("""
+        SELECT tm.artist_text, tm.title_text FROM track_match tm
+        JOIN tracks t ON t.id = tm.track_id
+        WHERE t.spotify_uri = ? LIMIT 1
+    """, (spotify_uri,)).fetchone()
+    return tuple(row) if row else None
 
 
 def track_source_stations(conn: sqlite3.Connection, artist: str, title: str) -> list[str]:

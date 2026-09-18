@@ -53,7 +53,8 @@ Losse database i.p.v. rechtstreeks tegen Spotify praten, om drie redenen:
 
 Tabellen:
 - `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie Les 8.
-- `spotify_matches` — cache van artiest+titel → Spotify-URI (of `NULL` = bewust "geen match gevonden", ook gecached zodat we dat niet opnieuw proberen).
+- `artists` (id, naam) / `tracks` (id, titel, Spotify-URI) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen.
+- `track_match` (artiest-tekst, titel-tekst) → track_id (of `NULL` = bewust "geen match gevonden", ook gecached) — de brug tussen `plays`' platte tekst en een genormaliseerd `track`. `plays` zelf blijft platte tekst (zie hierboven) en wordt dus nooit verplicht een match te hebben voordat een scrape kan landen.
 - `playlists` — station_slug → Spotify playlist-ID (voorkomt dat we elke run opnieuw playlists moeten opzoeken).
 - `playlist_tracks` — wat we denken dat er (per zender) in de Spotify-playlist staat.
 - `blocklist` — nummers die je zelf uit een playlist hebt verwijderd; worden nooit automatisch opnieuw toegevoegd.
@@ -102,7 +103,7 @@ Tabellen:
   Python-snippets (wat tot dan toe de gangbare aanpak was voor de
   handmatige top-30-selecties).
 - **`fetch_audio_features.py`** — haalt voor alle al-gematchte Spotify-tracks
-  (uit `spotify_matches`) de ReccoBeats-kenmerken op (energy, valence,
+  (uit `tracks`) de ReccoBeats-kenmerken op (energy, valence,
   danceability, tempo, ...) en cachet ze in `audio_features`. Geen API-key of
   Spotify-login nodig, kan onafhankelijk van `sync_playlist.py` draaien
   zodra er matches zijn. Zie `RECCOBEATS.md`.
@@ -162,6 +163,17 @@ aanlopen.
   `build_playlist.py` gebouwd om daar meteen iets mee te doen: eerste run
   ("RadioScrobbler - Vrijdagavond", daynr=5/daypart=3, top 30) leverde
   29/30 gematchte nummers op, live op Spotify.
+- **2026-09-19**: matching-laag genormaliseerd — `spotify_matches` vervangen
+  door `artists`/`tracks`/`track_artists`/`track_match` (zie hierboven).
+  `plays` blijft bewust ongewijzigd (platte tekst, geen FK naar een track).
+  Bestaande 107 matches gemigreerd via `migrate_normalize_matches.py`, met
+  écht van Spotify opgehaalde artiestenlijsten (niet onze eigen zoek-tekst)
+  — daarbij Les 9 tegengekomen (batch-endpoint `/v1/tracks` geeft 403,
+  single-item `/v1/tracks/{id}` werkt gewoon). Geverifieerd: 0 verschillen
+  tussen oude en nieuwe data (109/109 rijen), en alle scripts
+  (`sync_playlist.py`, `build_playlist.py`, `fetch_audio_features.py`,
+  `remove_station.py`) opnieuw getest tegen de nieuwe tabellen — werken
+  allemaal. Oude tabel daarna verwijderd.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren
@@ -171,3 +183,28 @@ akkoord is, bouwen: nummers uit main-playlists verwijderd (handmatig of via
 resync gedetecteerd) → toegevoegd aan Verbannen Nummers; alles wat in Verbannen Nummers
 staat (ook zelf toegevoegd) wordt bij elke sync genegeerd, maar blijft wel
 gewoon in de scrape/database staan.
+
+## Openstaand: disambiguatie tussen gelijknamige opnames (user story, nog niet gebouwd)
+**Als gebruiker wil ik dat de juiste versie van een nummer gematcht wordt,
+ook als er meerdere Spotify-opnames met identieke artiest+titel bestaan
+(bv. akoestische vs. studioversie), zodat de playlist het nummer bevat dat
+de radio daadwerkelijk speelde.**
+
+Bevestigd probleem (2026-09-18, test met Blind Guardian - "Bright Eyes -
+Remastered 2007", twee volledig verschillende opnames met identieke
+titel-tekst): onze matcher heeft geen enkel tekstueel signaal om ze te
+onderscheiden — hij kiest consistent (deterministisch per exacte query)
+maar willekeurig (afhankelijk van Spotify's eigen zoekresultaat-ranking),
+niet per se de opname die echt gedraaid is.
+
+Onderzocht: Spotify's eigen `popularity`-veld is sinds de februari 2026 API-
+wijzigingen niet meer beschikbaar voor Development Mode-apps (bevestigd,
+zie `RECCOBEATS.md`/Les 6-omgeving). **ReccoBeats geeft wél een
+`popularity`-score** (los van Spotify's beperking, getest en werkend) —
+potentiële tie-breaker voor later, mocht dit in de praktijk echt een keer
+misgaan. Bewust niet nu gebouwd: dit was een doelbewust geconstrueerd
+testgeval, nooit (nog) opgedoken in de 80+ echte matches tot nu toe, en het
+zou een extra ReccoBeats-call in de kern-matchingflow vereisen voor iets
+dat mogelijk zelden voorkomt — en zelfs dan geen garantie geeft ("populair"
+≠ "wat de radio speelde"). Oppakken zodra het echt een keer fout blijkt te
+gaan in de praktijk.

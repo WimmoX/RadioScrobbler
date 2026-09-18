@@ -21,7 +21,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 import db
-from sync_playlist import filter_liked, find_track_uri, get_or_create_playlist, get_spotify_client, _batched
+from sync_playlist import filter_liked, find_track_match, get_or_create_playlist, get_spotify_client, _batched
 
 LOG_DIR = "logs"
 
@@ -83,8 +83,11 @@ def main():
     for artist, title, plays in tracks:
         is_cached, uri = db.get_cached_match(conn, artist, title)
         if not is_cached:
-            uri = find_track_uri(sp, artist, title)
-            db.save_match(conn, artist, title, uri)
+            match = find_track_match(sp, artist, title)
+            uri = match["uri"] if match else None
+            db.save_match(conn, artist, title, uri,
+                           match["name"] if match else None,
+                           [a["name"] for a in match["artists"]] if match else None)
             new_lookups += 1
         if uri:
             desired_uris.add(uri)

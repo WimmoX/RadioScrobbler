@@ -56,12 +56,10 @@ def main():
             tracks = db.get_playlist_tracks(conn, playlist_key)
             exclusive = []
             for uri in tracks:
-                row = conn.execute(
-                    "SELECT artist, title FROM spotify_matches WHERE spotify_uri = ?", (uri,)
-                ).fetchone()
-                if not row:
+                match = db.get_match_text(conn, uri)
+                if not match:
                     continue
-                artist, title = row
+                artist, title = match
                 if db.track_source_stations(conn, artist, title) == [station]:
                     exclusive.append(uri)
 

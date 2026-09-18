@@ -174,3 +174,23 @@ feilloos, dus zonder die tweede test was dit pas bij de volgende scriptrun
 → Test een migratie altijd door de verbindingscode minstens twee keer
 achter elkaar te draaien, niet maar één keer — "het werkte de eerste keer"
 zegt niets over idempotentie.
+
+**Les 9 — `GET /v1/tracks` (batch, meerdere ID's tegelijk) geeft 403 voor
+Development Mode-apps; `GET /v1/tracks/{id}` (enkelvoud) werkt gewoon.**
+Bij het normaliseren van `spotify_matches` naar aparte `artists`/`tracks`/
+`track_artists`/`track_match`-tabellen (zie hierboven) moest voor 107 al
+gematchte nummers de échte, gestructureerde artiestenlijst van Spotify
+opgehaald worden (i.p.v. onze eigen zoek-tekst hergebruiken). De voor de
+hand liggende, zuinige aanpak — `sp.tracks([...])`, batches van 50 — gaf
+een kale 403 Forbidden. Eerst gecontroleerd of het misschien weer een
+scope- of rate-limit-probleem was (nee, beide uitgesloten), toen simpelweg
+`sp.track(één_id)` op dezelfde ID geprobeerd: werkte meteen. Blijkbaar is
+het batch-endpoint (net als eerder de audio-features- en popularity-
+endpoints, zie Les 6 / `RECCOBEATS.md`) verder ingeperkt voor onze
+toegangsklasse dan het single-item endpoint. Fix: gewoon 107 losse calls
+i.p.v. 3 batch-calls — met onze bestaande throttling/retry kostte dat een
+paar seconden extra, geen enkel probleem.
+→ Als een API "logisch equivalente" batch- en single-item-endpoints heeft
+en er iets vreemd 403't, test dan altijd eerst de single-item-variant voor
+je verder zoekt naar scope/auth-fouten — de twee endpoints kunnen
+losstaand van elkaar ingeperkt zijn.

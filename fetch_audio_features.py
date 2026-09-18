@@ -1,9 +1,9 @@
 """Fetch ReccoBeats audio features (energy, valence, danceability, tempo, ...)
 for tracks that are already matched to a Spotify URI, and cache them locally.
 
-No API key needed (see RECCOBEATS.md). Reads straight from spotify_matches,
-so this can run independently of sync_playlist.py as soon as that has
-matched at least some tracks.
+No API key needed (see RECCOBEATS.md). Reads straight from the `tracks`
+table, so this can run independently of sync_playlist.py as soon as that
+has matched at least some tracks.
 """
 import os
 
