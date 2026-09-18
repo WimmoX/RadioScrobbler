@@ -5,6 +5,9 @@
 # local database
 data/
 
+# per-run detail logs from build_playlist.py
+logs/
+
 # python
 __pycache__/
 *.pyc

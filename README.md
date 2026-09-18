@@ -92,6 +92,24 @@ history, so the more often you scrape, the longer your own history grows.
 .venv/bin/python3 remove_station.py kink
 ```
 
+### Daypart playlists
+
+Every play is tagged with `daynr` (ma=1..zo=7), `hr` (0-23) and `daypart`
+(0=nacht 1=ochtend 2=middag 3=avond), so you can build a playlist for a
+specific time slot — or a combination of them:
+
+```bash
+# Friday evening top 30
+.venv/bin/python3 build_playlist.py "Vrijdagavond" --daynr 5 --daypart 3
+
+# "Weekend energy": Friday evening + all of Saturday
+.venv/bin/python3 build_playlist.py "Weekend Energy" --daynr 5 --daypart 3 --daynr 6
+```
+
+It only prints a short summary — the full per-track detail goes to a log
+file under `logs/` instead, so this stays cheap to run from anywhere
+(including an LLM-driven workflow) regardless of how many tracks it processes.
+
 ## 🧩 How it fits together
 
 | Script | Does what | Talks to Spotify? |
@@ -102,6 +120,7 @@ history, so the more often you scrape, the longer your own history grows.
 | `fetch_audio_features.py` | Fetches energy/valence/etc. via ReccoBeats | ❌ (ReccoBeats instead) |
 | `add_station.py` | Looks up a station on OnlineRadioBox, adds it to `stations.py` | ❌ |
 | `remove_station.py` | Removes a station from config + history + any playlist tracks that came exclusively from it | ✅ |
+| `build_playlist.py` | Builds/updates a playlist from the top tracks in a day/daypart window | ✅ |
 
 Everything runs on a local SQLite database (`db.py`) that tracks: which
 tracks aired when, which Spotify match belongs to them, what's (as far as we

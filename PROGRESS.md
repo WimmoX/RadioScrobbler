@@ -88,6 +88,19 @@ Tabellen:
   in de live playlist zetten → weer verwijderen) — `stations.py` kwam er
   exact hetzelfde uit, en het testnummer werd correct uit de live playlist
   gehaald.
+- **`build_playlist.py <playlistnaam> [--daynr N ...] [--daypart N ...] [--top N] [--exclude-station ID ...]`**
+  — bouwt/update een playlist met de top-N nummers binnen een dag/dagdeel-
+  venster (`daynr`/`daypart`, zie hierboven), bv. "vrijdagavond" of, door
+  meerdere `--daynr`/`--daypart` mee te geven, een "weekend energy"-combi.
+  Hergebruikt dezelfde matching/retry/liked-bescherming als
+  `sync_playlist.py`. Print bewust alleen een korte samenvatting (aantal
+  kandidaten, aantal matches, playlist-link) — de volledige per-nummer-log
+  gaat naar een bestand onder `logs/` (genegeerd door git), zodat het
+  draaien van dit script niet afhangt van hoeveel data erdoorheen gaat.
+  Ontstaan uit een expliciete wens om dit soort playlist-opbouw als
+  losstaand, herhaalbaar commando te kunnen draaien i.p.v. ad-hoc via losse
+  Python-snippets (wat tot dan toe de gangbare aanpak was voor de
+  handmatige top-30-selecties).
 - **`fetch_audio_features.py`** — haalt voor alle al-gematchte Spotify-tracks
   (uit `spotify_matches`) de ReccoBeats-kenmerken op (energy, valence,
   danceability, tempo, ...) en cachet ze in `audio_features`. Geen API-key of
@@ -146,6 +159,9 @@ aanlopen.
   afgeleid van `played_at`) als basis voor Level 2 (dagdeel-playlists) —
   zie hierboven en Les 8. Migratie getest tegen de echte database, incl.
   een bug gevonden en gefixt vóórdat 'ie live kon gaan (zie Les 8).
+  `build_playlist.py` gebouwd om daar meteen iets mee te doen: eerste run
+  ("RadioScrobbler - Vrijdagavond", daynr=5/daypart=3, top 30) leverde
+  29/30 gematchte nummers op, live op Spotify.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren
