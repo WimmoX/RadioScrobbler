@@ -194,3 +194,46 @@ paar seconden extra, geen enkel probleem.
 en er iets vreemd 403't, test dan altijd eerst de single-item-variant voor
 je verder zoekt naar scope/auth-fouten — de twee endpoints kunnen
 losstaand van elkaar ingeperkt zijn.
+
+**Les 10 — `retries=0` (Les 5) loste het "urenlang stil blokkeren"-probleem
+op, maar verborg daarbij de échte `Retry-After` en `reason` van élke 429.**
+Bij het bouwen van een self-calibrerend quota-systeem (zie `quota.py`)
+bleek `e.headers.get("Retry-After", 1)` steeds op de fallback-waarde `1`
+uit te komen, en `e.reason` was nooit `"QUOTA_EXCEEDED"` — zelfs niet
+tijdens een bevestigd actieve, urenlange blokkade. Oorzaak: met `retries=0`
+onderschept urllib3's retry-adapter een 429 nog steeds (want die zit in de
+*default* `status_forcelist`), en omdat er met `total=0` niets meer te
+retryen valt, gooit hij een `requests.exceptions.RetryError` i.p.v. een
+normale `HTTPError`. Spotipy's foutafhandeling voor die twee gevallen is
+niet gelijk: de `HTTPError`-tak leest de JSON-body uit voor de echte
+headers/`reason`, maar de `RetryError`-tak doet dat niet en construeert een
+kale, generieke `SpotifyException` — dus precies de informatie die we
+nodig hadden (om QUOTA_EXCEEDED te herkennen en niet te retryen, zie
+hieronder) ging al verloren vóórdat onze eigen code er ooit bij kon.
+Fix: `status_forcelist=[999]` meegeven aan `spotipy.Spotify(...)` — een
+onmogelijke statuscode, zodat urllib3 nooit meer denkt dat het iets moet
+retryen, en élke fout (inclusief 429) gewoon via het normale, correct-
+parserende pad loopt. Let op de valkuil: `status_forcelist=[]` werkt niet,
+want spotipy doet intern `status_forcelist or self.default_retry_codes` —
+een lege lijst is *falsy* in Python, dus dat valt stilzwijgend terug op de
+default (die 429 juist wél bevat).
+→ Bevestigd na de fix: dit was al die tijd inderdaad een echte
+`QUOTA_EXCEEDED` (niet een gewone rate limit) — dat wisten we dus pas
+zeker nadat we de verborgen informatie weer zichtbaar hadden gemaakt.
+→ Als een library "geen retries" belooft via een simpele parameter, check
+dan of de onderliggende foutafhandeling (headers, foutdetails) ook
+volledig intact blijft in dat pad — een library kan retries uitzetten en
+tegelijk stilzwijgend informatie laten verdwijnen via een ander pad.
+
+**Feature: self-calibrerend Search-quota-budget (`quota.py`).** Spotify
+publiceert het quotum voor Development Mode-apps niet (en het kan
+wijzigen), dus i.p.v. blind een vast getal aan te houden, ontdekken we het
+empirisch: een run die zijn eigen zelfopgelegde limiet opbrengt zónder een
+echte 429 te krijgen, verhoogt de limiet met 10 voor de volgende keer
+(additive increase — vergelijkbaar met TCP-congestiecontrole). Een run die
+wél een echte `QUOTA_EXCEEDED` krijgt, zet de limiet direct terug naar het
+aantal calls dat in de afgelopen 24 uur daadwerkelijk lukte (snap-to-
+ceiling) en onthoudt tot wanneer we geblokkeerd zijn — een volgende run
+checkt dat *voordat* er ook maar één Spotify-call gedaan wordt. Gestart op
+300 calls/24u (zie eerdere overweging), en meteen bij het bouwen bevestigd
+tegen de echte, actieve blokkade van vandaag (zie Les 10 hierboven).

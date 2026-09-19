@@ -61,6 +61,10 @@ Tabellen:
 - `audio_features` — cache van ReccoBeats-kenmerken per Spotify-URI (energy, valence, danceability, tempo, etc.).
 
 ### Scripts
+- **`quota.py`** (geen los script, een module) — `SearchBudget`: zelf-
+  calibrerend budget voor Spotify Search-calls, zie Les 10 in
+  `LessonsLearned.md`. Gebruikt door `sync_playlist.py`/`build_playlist.py`
+  vóór elke nieuwe matching-poging.
 - **`scrape.py [station]`** — haalt de laatste 7 dagen op van OnlineRadioBox en
   slaat ze op in `plays`. Geen Spotify-calls, dus altijd veilig om te draaien.
   Draai dit regelmatig (dagelijks) om historie op te bouwen.
@@ -174,6 +178,16 @@ aanlopen.
   (`sync_playlist.py`, `build_playlist.py`, `fetch_audio_features.py`,
   `remove_station.py`) opnieuw getest tegen de nieuwe tabellen — werken
   allemaal. Oude tabel daarna verwijderd.
+- **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
+  (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
+  échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
+  zelf-calibrerend budgetsysteem (`quota.py`) i.p.v. een vast aantal — zie
+  Les 10. Onderweg ontdekt dat onze eigen `retries=0`-fix (Les 5) de echte
+  `Retry-After`/`reason` van élke 429 verborg via een ander spotipy-
+  foutpad; gefixt met `status_forcelist=[999]`. Live geverifieerd tegen de
+  actieve blokkade van vandaag: `QuotaBlocked` wordt nu binnen 0,08s
+  herkend (i.p.v. 5 nutteloze retries), met de échte `reason:
+  "QUOTA_EXCEEDED"` en `Retry-After`. Budget gestart op 300 calls/24u.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren

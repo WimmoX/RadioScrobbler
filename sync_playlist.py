@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 
 import db
+import quota
 from retry import RateLimited, call_with_retry
 from stations import STATIONS
 
@@ -23,11 +24,24 @@ LOOKBACK_DAYS = 14
 
 
 def get_spotify_client() -> spotipy.Spotify:
-    # retries=0: spotipy's own urllib3-level retry would otherwise sleep out
-    # a 429's full Retry-After *inside* the HTTP call, blocking for minutes
-    # to hours with no visibility. Disabling it makes every 429 raise a
-    # SpotifyException immediately, so our own _call_with_retry (retry.py)
-    # is the only thing controlling backoff/pacing.
+    # retries=0/status_retries=0 (Les 5): stop spotipy's own urllib3-level
+    # retry from sleeping out a 429's Retry-After *inside* the HTTP call,
+    # invisibly, for minutes to hours.
+    #
+    # status_forcelist=[999] (Les 10): with retries=0, urllib3's adapter
+    # still *intercepts* any status in its forcelist (default includes 429)
+    # before handing control back — and because total=0 leaves no retries
+    # to actually perform, it raises requests.exceptions.RetryError instead
+    # of a normal HTTPError. spotipy's RetryError handler (unlike its
+    # HTTPError handler) does NOT forward the response's real headers or
+    # the body's "reason" field — so our own backoff/quota code was
+    # silently getting a fake Retry-After of 1 and no QUOTA_EXCEEDED
+    # signal, even during a real, multi-hour block. Passing a status code
+    # Spotify never returns keeps urllib3 from intercepting 429 at all, so
+    # it reaches spotipy's normal HTTPError path with the real data intact.
+    # (status_forcelist=[] would NOT work here: spotipy does
+    # `status_forcelist or self.default_retry_codes`, and an empty list is
+    # falsy in Python, so it would silently fall back to the default.)
     return spotipy.Spotify(
         auth_manager=SpotifyOAuth(
             client_id=os.environ["SPOTIFY_CLIENT_ID"],
@@ -37,6 +51,7 @@ def get_spotify_client() -> spotipy.Spotify:
         ),
         retries=0,
         status_retries=0,
+        status_forcelist=[999],
     )
 
 
@@ -46,7 +61,15 @@ def _call_with_retry(fn, *args, **kwargs):
             return fn(*args, **kwargs)
         except spotipy.SpotifyException as e:
             if e.http_status == 429:
-                raise RateLimited(int(e.headers.get("Retry-After", 1)))
+                retry_after = int(e.headers.get("Retry-After", 1))
+                # QUOTA_EXCEEDED is a different, much longer-lived block than
+                # an ordinary rate limit — retrying it just burns more of the
+                # same exhausted budget (see LessonsLearned.md), so this
+                # raises straight out instead of going through retry.py's
+                # backoff loop (which only knows how to retry RateLimited).
+                if e.reason == "QUOTA_EXCEEDED":
+                    raise quota.QuotaBlocked(retry_after)
+                raise RateLimited(retry_after)
             raise
     return call_with_retry(attempt)
 
@@ -146,16 +169,23 @@ def _best_candidate(items: list, artist: str, title: str) -> dict | None:
     return best
 
 
-def find_track_match(sp: spotipy.Spotify, artist: str, title: str) -> dict | None:
+def find_track_match(sp: spotipy.Spotify, artist: str, title: str, budget: quota.SearchBudget) -> dict | None:
     """Returns the best-matching Spotify track item (uri/name/artists), or None.
     Callers that need the normalized (title, artist list) for db.save_match
     should use item["name"] / [a["name"] for a in item["artists"]] — that's
-    Spotify's own structured data, not our search-query text."""
-    results = _call_with_retry(sp.search, q=f"artist:{artist} track:{title}", type="track", limit=5)
-    items = results["tracks"]["items"]
+    Spotify's own structured data, not our search-query text.
+
+    Raises quota.QuotaExhausted / quota.QuotaBlocked instead of making a
+    Search call we shouldn't — see quota.py."""
+    def do_search(query):
+        budget.check()
+        results = _call_with_retry(sp.search, q=query, type="track", limit=5)
+        budget.record_call()
+        return results["tracks"]["items"]
+
+    items = do_search(f"artist:{artist} track:{title}")
     if not items:
-        results = _call_with_retry(sp.search, q=f"{artist} {title}", type="track", limit=5)
-        items = results["tracks"]["items"]
+        items = do_search(f"{artist} {title}")
     return _best_candidate(items, artist, title)
 
 
@@ -215,13 +245,23 @@ def main():
     print(f"{len(tracks)} unique tracks played on {station_slug} in the last {LOOKBACK_DAYS} days")
 
     sp = get_spotify_client()
+    budget = quota.SearchBudget(conn)
 
     desired_uris = set()
     new_lookups = 0
+    stopped_early = None
     for artist, title in tracks:
         is_cached, uri = db.get_cached_match(conn, artist, title)
         if not is_cached:
-            match = find_track_match(sp, artist, title)
+            try:
+                match = find_track_match(sp, artist, title, budget)
+            except quota.QuotaExhausted:
+                stopped_early = f"self-imposed budget reached ({budget.limit} calls/24h)"
+                break
+            except quota.QuotaBlocked as e:
+                budget.record_block(e.retry_after_seconds)
+                stopped_early = f"Spotify quota exceeded, available again in {e.retry_after_seconds}s"
+                break
             uri = match["uri"] if match else None
             db.save_match(conn, artist, title, uri,
                            match["name"] if match else None,
@@ -229,7 +269,10 @@ def main():
             new_lookups += 1
         if uri:
             desired_uris.add(uri)
+    budget.finish()
     print(f"Matched {len(desired_uris)}/{len(tracks)} tracks ({new_lookups} new Spotify lookups, rest from cache)")
+    if stopped_early:
+        print(f"Stopped early: {stopped_early}. Remaining unmatched tracks will be picked up next run.")
 
     known_uris = db.get_playlist_tracks(conn, station_slug)
     blocked_uris = db.get_blocklist(conn, station_slug)

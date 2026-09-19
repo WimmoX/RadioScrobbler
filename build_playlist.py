@@ -21,6 +21,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 import db
+import quota
 from sync_playlist import filter_liked, find_track_match, get_or_create_playlist, get_spotify_client, _batched
 
 LOG_DIR = "logs"
@@ -75,15 +76,25 @@ def main():
     tracks = top_tracks(conn, args.daynr, args.daypart, args.exclude_station, args.top)
 
     sp = get_spotify_client()
+    budget = quota.SearchBudget(conn)
     log_lines = [f"Kandidaten: {len(tracks)} (daynr={args.daynr or 'alle'}, "
                  f"daypart={args.daypart or 'alle'}, exclude={args.exclude_station})"]
 
     desired_uris = set()
     new_lookups = 0
+    stopped_early = None
     for artist, title, plays in tracks:
         is_cached, uri = db.get_cached_match(conn, artist, title)
         if not is_cached:
-            match = find_track_match(sp, artist, title)
+            try:
+                match = find_track_match(sp, artist, title, budget)
+            except quota.QuotaExhausted:
+                stopped_early = f"self-imposed budget reached ({budget.limit} calls/24h)"
+                break
+            except quota.QuotaBlocked as e:
+                budget.record_block(e.retry_after_seconds)
+                stopped_early = f"Spotify quota exceeded, available again in {e.retry_after_seconds}s"
+                break
             uri = match["uri"] if match else None
             db.save_match(conn, artist, title, uri,
                            match["name"] if match else None,
@@ -93,6 +104,9 @@ def main():
             desired_uris.add(uri)
         log_lines.append(f"{'OK  ' if uri else 'MISS'}  {plays:3}x  {artist} - {title}" +
                           (f"  -> {uri}" if uri else ""))
+    budget.finish()
+    if stopped_early:
+        log_lines.append(f"Stopped early: {stopped_early}")
 
     known_uris = db.get_playlist_tracks(conn, playlist_key)
     blocked_uris = db.get_blocklist(conn, playlist_key)
@@ -115,6 +129,8 @@ def main():
         f.write("\n".join(log_lines) + "\n")
 
     print(f"Kandidaten: {len(tracks)}, gematcht: {len(desired_uris)} ({new_lookups} nieuwe lookups)")
+    if stopped_early:
+        print(f"Stopped early: {stopped_early}. Remaining tracks picked up next run.")
     print(f"Playlist '{args.playlist_name}': +{len(to_add)} -{len(to_remove)} (nu {len(desired_uris)} totaal)")
     print(f"Link: https://open.spotify.com/playlist/{playlist_id}")
     print(f"Details per nummer: {log_path}")

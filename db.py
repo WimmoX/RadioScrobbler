@@ -1,7 +1,7 @@
 """Local SQLite storage for played tracks and cached Spotify matches."""
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 AUDIO_FEATURE_COLUMNS = (
     "spotify_uri", "acousticness", "danceability", "energy", "instrumentalness",
@@ -91,7 +91,25 @@ CREATE TABLE IF NOT EXISTS audio_features (
     valence REAL,
     fetched_at TEXT NOT NULL
 );
+
+-- Self-calibrating budget for Spotify Search calls (see quota.py). We don't
+-- know Spotify's actual Development Mode quota (undocumented, can change),
+-- so we discover it empirically: a run that exhausts call_limit without a
+-- real block nudges it up; a real QUOTA_EXCEEDED 429 snaps it down to
+-- whatever actually succeeded. search_calls is a plain append-only log used
+-- to count calls in the trailing 24h window.
+CREATE TABLE IF NOT EXISTS search_calls (
+    called_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS search_quota_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    call_limit INTEGER NOT NULL,
+    blocked_until TEXT
+);
 """
+
+SEARCH_QUOTA_SEED_LIMIT = 300
 
 
 _PLAYS_MIGRATIONS = {
@@ -127,6 +145,11 @@ def connect(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
     _migrate(conn)
+    conn.execute(
+        "INSERT OR IGNORE INTO search_quota_state (id, call_limit, blocked_until) VALUES (1, ?, NULL)",
+        (SEARCH_QUOTA_SEED_LIMIT,),
+    )
+    conn.commit()
     return conn
 
 
@@ -330,3 +353,29 @@ def playlist_keys(conn: sqlite3.Connection) -> list[str]:
     """Every distinct playlist we're locally tracking the contents of."""
     rows = conn.execute("SELECT DISTINCT station_slug FROM playlist_tracks").fetchall()
     return [row[0] for row in rows]
+
+
+def log_search_call(conn: sqlite3.Connection) -> None:
+    conn.execute("INSERT INTO search_calls (called_at) VALUES (?)", (datetime.now().isoformat(),))
+    conn.commit()
+
+
+def search_calls_in_last_24h(conn: sqlite3.Connection) -> int:
+    since = (datetime.now() - timedelta(hours=24)).isoformat()
+    return conn.execute("SELECT COUNT(*) FROM search_calls WHERE called_at >= ?", (since,)).fetchone()[0]
+
+
+def get_quota_state(conn: sqlite3.Connection) -> tuple[int, str | None]:
+    """Return (call_limit, blocked_until). blocked_until is an ISO timestamp or None."""
+    row = conn.execute("SELECT call_limit, blocked_until FROM search_quota_state WHERE id = 1").fetchone()
+    return row[0], row[1]
+
+
+def set_call_limit(conn: sqlite3.Connection, limit: int) -> None:
+    conn.execute("UPDATE search_quota_state SET call_limit = ? WHERE id = 1", (limit,))
+    conn.commit()
+
+
+def set_blocked_until(conn: sqlite3.Connection, iso_timestamp: str | None) -> None:
+    conn.execute("UPDATE search_quota_state SET blocked_until = ? WHERE id = 1", (iso_timestamp,))
+    conn.commit()
