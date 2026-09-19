@@ -8,4 +8,7 @@ STATIONS = {
     "pingclass": "Penguin Classics",
     "kinkclassics": "KINK Classics",
     "kinkdistortion": "KINK Distortion",
+    "zeilsteen": "Zeilsteen Radio",
+    "slamnonst": "SLAM! Non Stop",
+    "radio2": "NPO Radio 2",
 }

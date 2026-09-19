@@ -32,6 +32,9 @@ Bekende zenders (`stations.py`):
 | Pinguin Classics | `pingclass` |
 | KINK Classics | `kinkclassics` |
 | KINK Distortion | `kinkdistortion` |
+| Zeilsteen Radio | `zeilsteen` |
+| SLAM! Non Stop | `slamnonst` |
+| NPO Radio 2 | `radio2` |
 
 OnlineRadioBox groepeert zenders per land in de URL (`/nl/...`, `/uk/...`,
 etc.). Een station-ID is dus óf een kale slug (dan gaan we uit van `nl`), óf
@@ -241,3 +244,28 @@ zou een extra ReccoBeats-call in de kern-matchingflow vereisen voor iets
 dat mogelijk zelden voorkomt — en zelfs dan geen garantie geeft ("populair"
 ≠ "wat de radio speelde"). Oppakken zodra het echt een keer fout blijkt te
 gaan in de praktijk.
+
+## Openstaand: NPO 3FM heeft geen tracklist-data op OnlineRadioBox
+Getest (2026-09-19): OnlineRadioBox heeft voor `npo3fm` op **geen enkele**
+van de 7 dagen tracklist-data ("Helaas gaf het radiostation geen playlist
+op voor deze dag") — geen tijdelijk gat, de zender levert deze bron
+kennelijk niets. Daarom (nog) niet toegevoegd aan `stations.py`.
+
+Wél een bruikbaar spoor gevonden: `npo3fm.nl/gedraaid` heeft zelf een
+"laatst gedraaid"-pagina met een ingebed JSON-blok (`__NEXT_DATA__` →
+`props.pageProps.trackPlays`) met artiest, titel én exact tijdstip — werkt
+betrouwbaar voor de **laatste ~12 nummers van vandaag**. De pagina claimt
+17 pagina's (~200 nummers) en een `date`-parameter voor eerdere dagen te
+ondersteunen, maar die worden **server-side genegeerd** (zowel de gewone
+HTML-route als de lichte `_next/data/{buildId}/gedraaid.json`-route geven
+altijd exact dezelfde "vandaag, pagina 1"-data terug, ongeacht `page=`/
+`date=`-parameters) — de echte datum/pagina-navigatie gebeurt kennelijk via
+een client-side JS-aangeroepen API die niet direct in de HTML/bundle-tekst
+te vinden was. Verder uitzoeken zou dieper in de webpack-JS-bundel moeten
+graven, of een headless browser vereisen.
+
+Voor nu bewust laten zitten (op verzoek). Als dit ooit wordt opgepakt: een
+simpele scraper voor de "laatste 12"-snapshot zou al werken, maar vereist
+dan wél veel frequenter scrapen (elke paar uur, niet 1x per week) omdat er
+geen enkele terugwerkende historie op te halen is — heel anders dan het
+7-dagen-venster van OnlineRadioBox.
