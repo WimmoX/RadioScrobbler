@@ -37,6 +37,7 @@ class SearchBudget:
         self.limit, blocked_until = db.get_quota_state(conn)
         self.blocked_until = datetime.fromisoformat(blocked_until) if blocked_until else None
         self._hit_real_block = False
+        self._hit_own_limit = False
 
     def check(self) -> None:
         """Raise QuotaBlocked/QuotaExhausted if we shouldn't make a Search call right now."""
@@ -44,6 +45,7 @@ class SearchBudget:
             remaining = int((self.blocked_until - datetime.now()).total_seconds())
             raise QuotaBlocked(remaining)
         if db.search_calls_in_last_24h(self.conn) >= self.limit:
+            self._hit_own_limit = True
             raise QuotaExhausted()
 
     def record_call(self) -> None:
@@ -59,9 +61,13 @@ class SearchBudget:
         self._hit_real_block = True
 
     def finish(self) -> None:
-        """Call once at the end of a run. If we never hit a real block, nudge
-        the limit up — either we stayed comfortably under it, or we exhausted
-        our own cap without Spotify complaining, so it's safe to try a bit more."""
-        if not self._hit_real_block:
+        """Call once at the end of a run. Only nudge the limit up if this run
+        actually pushed against it (self-imposed QuotaExhausted was raised)
+        AND Spotify never complained — that's the only situation with real
+        evidence there's headroom. A run that finishes early just because
+        there weren't many new tracks to look up proves nothing about the
+        real ceiling and must NOT inflate the limit — otherwise a handful of
+        small, harmless sessions would ratchet it up for no reason."""
+        if self._hit_own_limit and not self._hit_real_block:
             self.limit += STEP
             db.set_call_limit(self.conn, self.limit)

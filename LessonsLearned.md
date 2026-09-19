@@ -237,3 +237,14 @@ ceiling) en onthoudt tot wanneer we geblokkeerd zijn — een volgende run
 checkt dat *voordat* er ook maar één Spotify-call gedaan wordt. Gestart op
 300 calls/24u (zie eerdere overweging), en meteen bij het bouwen bevestigd
 tegen de echte, actieve blokkade van vandaag (zie Les 10 hierboven).
+
+*Bugfix achteraf:* de eerste versie verhoogde de limiet bij élke run zonder
+blokkade, ook als die run maar een paar tientallen calls deed en de limiet
+nooit ook maar benaderde — een paar kleine, onschuldige sessies zouden de
+limiet dan zonder enig bewijs voor extra ruimte laten oplopen. Fix: alleen
+verhogen als de run zijn eigen limiet ook daadwerkelijk heeft opgezocht
+(`QuotaExhausted` is gegooid) *en* daarbij geen echte blokkade kreeg — dat
+is de enige situatie met echt bewijs dat er ruimte over is.
+→ Bij "verhoog bij succes"-logica: check dat "succes" ook echt betekent dat
+je de grens hebt opgezocht, niet gewoon "er ging niets mis" — die twee
+lijken op elkaar maar zijn niet hetzelfde bewijs.
