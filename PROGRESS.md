@@ -129,7 +129,9 @@ geschiedenis persistent is, nu nog lokaal op de Mac).
 ## Lessons learned
 Zie `LessonsLearned.md` voor opgeloste problemen (rate limits, dedup-bugs,
 scraping-aanpak) — apart bestand zodat we niet steeds tegen hetzelfde
-aanlopen.
+aanlopen. Voor Spotify specifiek: `SpotifyAPI.md` is het opgeschoonde
+naslagwerk (endpoints, quota-gedrag, scopes, spotipy-valkuilen,
+foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
 
 ## Status (2026-09-08)
 - **KINK Radio (`kink`) is uit het systeem gehaald** op verzoek (muzieksmaak

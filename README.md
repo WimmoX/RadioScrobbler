@@ -138,6 +138,10 @@ Want more detail? 📖
 - **`PROGRESS.md`** — full architecture, status, and open items.
 - **`LessonsLearned.md`** — problems we already solved (so we don't run into
   them twice).
+- **`SpotifyAPI.md`** — everything learned about Spotify's Web API
+  (Development Mode quirks, working vs. broken endpoints, quota behaviour,
+  error meanings) plus a rundown of the other external sources
+  (OnlineRadioBox, ReccoBeats, MusicBrainz).
 - **`RECCOBEATS.md`** — how the audio-profile integration works.
 
 ## 🗺️ Roadmap
