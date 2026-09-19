@@ -76,6 +76,11 @@ Tabellen:
   Wordt automatisch ingezet door `sync_playlist.py`/`build_playlist.py`
   zodra `quota.QuotaBlocked`/`QuotaExhausted` optreedt — de rest van die run
   gaat dan verder op ReccoBeats i.p.v. te stoppen.
+- **`match_reccobeats_backlog.py [--limit N]`** — proactief (dus niet als
+  fallback, maar los ingepland) de matching-achterstand wegwerken via
+  ReccoBeats, zonder het Spotify-budget aan te spreken (ReccoBeats heeft
+  vooralsnog geen eigen quota getoond). Misses worden bewust niet als
+  "definitief geen match" opgeslagen — Spotify mag het later nog proberen.
 - **`scrape.py [station]`** — haalt de laatste 7 dagen op van OnlineRadioBox en
   slaat ze op in `plays`. Geen Spotify-calls, dus altijd veilig om te draaien.
   Draai dit regelmatig (dagelijks) om historie op te bouwen.
@@ -210,6 +215,16 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   nog actieve blokkade van vandaag: 7/8 nummers correct via ReccoBeats
   gematcht, en het "upgrade bij Spotify-bevestiging"-pad geverifieerd
   (geen duplicaat, `source` correct bijgewerkt). Zie Les 11.
+- **2026-09-19 (avond)**: 4 nieuwe zenders toegevoegd (Zeilsteen Radio,
+  SLAM! Non Stop, NPO Radio 2; NPO 3FM onderzocht maar niet toegevoegd, zie
+  hieronder). Vervolgens de matching-achterstand aangepakt: van de 7.708
+  unieke nummers over alle zenders was tot dan toe nog maar ~10% ooit
+  geprobeerd te matchen. `match_reccobeats_backlog.py` gebouwd om dit
+  proactief (los van de fallback-rol) via ReccoBeats weg te werken, zonder
+  het Spotify-budget aan te spreken. Onderweg een echte bug gevonden en
+  gefixt (een batch van 500 crashte op één kort titeltje, "Pa" — zie Les
+  11-vervolg). Na de fix: 353/500 (70,6%) in één run gematcht, waarmee de
+  achterstand van ~10% naar ~17% geprobeerd ging.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren

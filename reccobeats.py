@@ -16,14 +16,19 @@ SEARCH_URL = "https://api.reccobeats.com/v1/track/search"
 REQUEST_DELAY = 0.2
 
 
-def _get_with_retry(url: str, params: dict) -> requests.Response:
+def _get_with_retry(url: str, params: dict) -> requests.Response | None:
+    """Returns None (not a match) on a non-429 HTTP error instead of raising —
+    a single track ReccoBeats doesn't like (e.g. a rejected query) shouldn't
+    crash a whole backlog batch of hundreds of other, unrelated tracks."""
     def attempt():
         response = requests.get(url, params=params, timeout=15)
         if response.status_code == 429:
             raise RateLimited(int(response.headers.get("Retry-After", 1)))
-        response.raise_for_status()
         return response
-    return call_with_retry(attempt, delay=REQUEST_DELAY)
+    response = call_with_retry(attempt, delay=REQUEST_DELAY)
+    if response.status_code >= 400:
+        return None
+    return response
 
 
 def search_track(artist: str, title: str) -> dict | None:
@@ -37,8 +42,18 @@ def search_track(artist: str, title: str) -> dict | None:
     position 9 of 200 total results for just "Bright Eyes" — so we search on
     title alone (with a larger page to raise the odds of the right artist
     being on it) and let best_candidate() pick the right artist out of the
-    results, same as we already do for Spotify's own search."""
+    results, same as we already do for Spotify's own search.
+
+    ReccoBeats also rejects searchText shorter than 3 characters (400,
+    "size must be between 3 and 1000") — real short titles do exist (e.g.
+    Doe Maar's "Pa"), so we just skip the call and report no match instead
+    of erroring."""
+    if len(title) < 3:
+        return None
+
     response = _get_with_retry(SEARCH_URL, {"searchText": title, "size": 50})
+    if response is None:
+        return None
     items = response.json().get("content", [])
 
     # Normalize to the shape best_candidate() expects (Spotify's item shape):

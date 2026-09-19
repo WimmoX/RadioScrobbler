@@ -110,6 +110,12 @@ filter zelf op de juiste artiest uit de resultaten — zie
 matchlogica hergebruikt als voor Spotify's eigen zoekresultaten
 (`matching.py`).
 
+**`searchText` moet minimaal 3 tekens zijn.** Kortere waarden (bv. het
+echt bestaande nummer "Pa" van Doe Maar) geven een `400 Bad Request`:
+`{"status":4004,"errors":[{"path":"searchTracks.searchText","message":"size must be between 3 and 1000"}]}`.
+`reccobeats.py:search_track()` slaat zulke titels over (retourneert
+`None`) i.p.v. de call te maken.
+
 ## Batchen (meerdere nummers in één call)
 Twee ondersteunde vormen, beide getest en werkend:
 ```

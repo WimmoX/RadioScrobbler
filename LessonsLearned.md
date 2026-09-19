@@ -280,3 +280,20 @@ blijft gelijk, `reccobeats_id` blijft bewaard voor het betrouwbaarheids-
 inzicht). Live getest tegen de actieve blokkade van vandaag: 7/8 losse
 testnummers correct gematcht via ReccoBeats, en één upgrade-scenario
 (Spotify bevestigt exact dezelfde track die ReccoBeats al gaf) geverifieerd.
+
+*Vervolg (2026-09-19, proactief backlog matchen):* ReccoBeats heeft (voor
+zover geobserveerd) geen eigen dagquota, dus naast de fallback-rol kan het
+ook **proactief** de matching-achterstand wegwerken zonder ooit het
+Spotify-budget aan te spreken — zie `match_reccobeats_backlog.py`. Bij een
+run van 500 nog nooit geprobeerde nummers crashte de hele batch op de
+eerste onverwachte fout: `searchText=Pa` (een echt bestaand nummer, Doe
+Maar - "Pa") gaf een kale `400 Bad Request` — ReccoBeats vereist
+`searchText` van minimaal 3 tekens (`"size must be between 3 and 1000"`).
+Fix: titels korter dan 3 tekens meteen als "geen match" overslaan (geen
+call nodig), plus algemene robuustheid in `_get_with_retry()` — een
+onverwachte non-429 HTTP-fout op één nummer geeft nu `None` terug i.p.v. de
+hele batch te laten crashen. Daarna 353/500 (70,6%) succesvol gematcht.
+→ Bij een batch-script over honderden losse externe API-calls: één
+onvoorziene edge case (hier: een simpele lengte-eis) mag nooit de hele
+batch laten crashen — vang fouten per item af, niet alleen per verwachte
+foutcode (429).
