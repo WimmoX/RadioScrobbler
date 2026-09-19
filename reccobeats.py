@@ -32,7 +32,7 @@ def _get_with_retry(url: str, params: dict) -> requests.Response | None:
 
 
 def search_track(artist: str, title: str) -> dict | None:
-    """Returns {"uri", "name", "artists", "reccobeats_id"} for the best match, or None.
+    """Returns {"uri", "name", "artists", "reccobeats_id", "isrc"} for the best match, or None.
 
     Unlike Spotify, ReccoBeats' searchText looks like a fairly literal phrase
     match rather than fuzzy full-text: combining "{artist} {title}" into one
@@ -68,6 +68,7 @@ def search_track(artist: str, title: str) -> dict | None:
             "artists": item["artists"],
             "uri": f"spotify:track:{href.rstrip('/').rsplit('/', 1)[-1]}",
             "_reccobeats_id": item["id"],
+            "_isrc": item.get("isrc"),
         })
 
     best = best_candidate(candidates, artist, title)
@@ -78,4 +79,5 @@ def search_track(artist: str, title: str) -> dict | None:
         "name": best["name"],
         "artists": best["artists"],
         "reccobeats_id": best["_reccobeats_id"],
+        "isrc": best["_isrc"],
     }

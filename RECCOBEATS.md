@@ -21,7 +21,8 @@ https://api.reccobeats.com
 Gebruikt **Spotify track-ID's** (het stuk na `/track/` in een Spotify-URL,
 bv. `0VjIjW4GlUZAMYd2vXMi3b` voor "Blinding Lights"). Dat zijn dezelfde ID's
 die we al krijgen uit de Spotify Search-matching in `sync_playlist.py` — dus
-geen aparte matching-stap nodig, gewoon de bestaande `spotify_uri`
+geen aparte matching-stap nodig, gewoon het bestaande Spotify-id (in
+`track_services`, `service='spotify'`)
 (`spotify:track:{id}`, pak het laatste deel na de laatste `:`).
 
 ## Endpoints
@@ -134,9 +135,9 @@ gepubliceerd ("intern geconfigureerd, wacht op basis van `Retry-After`").
 hergebruiken (dezelfde 429/backoff-aanpak).
 
 ## Integratie — gebouwd
-`fetch_audio_features.py` haalt voor alle al-gematchte tracks in
-`spotify_matches` de ReccoBeats-kenmerken op en cachet ze in de tabel
-`audio_features` (spotify_uri → energy/valence/danceability/tempo/etc. +
+`fetch_audio_features.py` haalt voor alle al-gematchte tracks (die een
+Spotify-id in `track_services` hebben) de ReccoBeats-kenmerken op en cachet
+ze in de tabel `audio_features` (track_id → energy/valence/danceability/tempo/etc. +
 fetched_at). Batcht per 40 ID's, hergebruikt dezelfde 429/backoff-aanpak als
 Spotify. Getest (2026-09-08) met twee bekende tracks + één niet-bestaand
 nummer (om de "geen match"-cache te checken) — werkt, en een herhaalde run

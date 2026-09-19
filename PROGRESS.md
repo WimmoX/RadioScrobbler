@@ -56,12 +56,15 @@ Losse database i.p.v. rechtstreeks tegen Spotify praten, om drie redenen:
 
 Tabellen:
 - `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie Les 8.
-- `artists` (id, naam) / `tracks` (id, titel, Spotify-URI, `source`, `reccobeats_id`) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen. `source` is `'spotify'` (direct bevestigd) of `'reccobeats'` (alleen via de fallback gevonden, zie Les 11 — telt als niet-definitief-gecached totdat een latere run Spotify erbij haalt).
-- `track_match` (artiest-tekst, titel-tekst) → track_id (of `NULL` = bewust "geen match gevonden", ook gecached) — de brug tussen `plays`' platte tekst en een genormaliseerd `track`. `plays` zelf blijft platte tekst (zie hierboven) en wordt dus nooit verplicht een match te hebben voordat een scrape kan landen.
-- `playlists` — station_slug → Spotify playlist-ID (voorkomt dat we elke run opnieuw playlists moeten opzoeken).
-- `playlist_tracks` — wat we denken dat er (per zender) in de Spotify-playlist staat.
-- `blocklist` — nummers die je zelf uit een playlist hebt verwijderd; worden nooit automatisch opnieuw toegevoegd.
-- `audio_features` — cache van ReccoBeats-kenmerken per Spotify-URI (energy, valence, danceability, tempo, etc.).
+- `artists` (id, naam) / `tracks` (id, titel, `isrc`) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen. Een `track` is sinds 2026-09-20 muziekdienst-onafhankelijk (issue #2): het heeft een eigen id, en de verwijzing naar Spotify (of een andere dienst) staat in `track_services`. `isrc` is de internationale opnamecode — de enige sleutel die alle diensten delen; wordt nu alleen gevuld als ReccoBeats 'm meegeeft (0 van 1.227 tracks per 2026-09-20, want de bestaande matches zijn van vóór die koppeling).
+- `track_services` (track_id, `service`, `external_id`, `verified`) — één rij per (track, dienst): `service='spotify'` met de volledige `spotify:track:...`-URI (dat is wat Spotify's API verwacht), `service='reccobeats'` met het ReccoBeats-id (geen luisterdienst, maar wel een plek met een eigen id voor de opname). `verified=1` = de dienst zélf heeft de match bevestigd; `verified=0` = alleen een kandidaat-id via de ReccoBeats-fallback (zie Les 11) — telt als niet-definitief-gecached totdat een latere run Spotify erbij haalt. Een tweede dienst toevoegen = rijen met een andere `service`, geen schemawijziging.
+- `track_match` (artiest-tekst, titel-tekst, `service`) → track_id (of `NULL` = bewust "geen match gevonden bij die dienst", ook gecached) — de brug tussen `plays`' platte tekst en een genormaliseerd `track`. `plays` zelf blijft platte tekst (zie hierboven) en wordt dus nooit verplicht een match te hebben voordat een scrape kan landen. `service` zit in de sleutel zodat "Spotify vond niets" een andere dienst later niet blokkeert.
+- `playlists` (station_slug, `service`) → playlist_id — voorkomt dat we elke run opnieuw playlists moeten opzoeken.
+- `playlist_tracks` — wat we denken dat er (per zender) in de playlist staat; op `track_id`.
+- `blocklist` — nummers die je zelf uit een playlist hebt verwijderd; worden nooit automatisch opnieuw toegevoegd; op `track_id`.
+- `audio_features` — cache van ReccoBeats-kenmerken per `track_id` (energy, valence, danceability, tempo, etc.).
+
+De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify-URI's, `service="spotify"` als default) en vertalen intern naar `track_id` — zo blijven `sync_playlist.py`, `build_playlist.py` enz. vrijwel ongewijzigd. Een onbekend id geeft een `KeyError`. Bewust nog **niet** opgelost: dezelfde opname op twee diensten aan één `track` koppelen (dat gaat via ISRC, en hoort bij het bouwen van de eerste tweede integratie — dit ticket bereidt alleen voor).
 
 ### Scripts
 - **`quota.py`** (geen los script, een module) — `SearchBudget`: zelf-
@@ -196,6 +199,24 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (`sync_playlist.py`, `build_playlist.py`, `fetch_audio_features.py`,
   `remove_station.py`) opnieuw getest tegen de nieuwe tabellen — werken
   allemaal. Oude tabel daarna verwijderd.
+- **2026-09-20**: database losgekoppeld van Spotify (issue #2) — nieuwe
+  tabel `track_services`; `tracks` heeft alleen nog `id`/`title`/`isrc`;
+  `playlist_tracks`, `blocklist` en `audio_features` staan nu op `track_id`;
+  `playlists` en `track_match` hebben een `service`-kolom. De migratie
+  draait automatisch (en eenmalig) in `db.connect()` in één transactie en
+  draait zichzelf terug als een rijaantal niet klopt. Geverifieerd op een
+  kopie én op de echte database: 1.227 tracks (690 `verified`), 59
+  playlist-regels, 325 audio_features, 1.286 track_match-rijen (56
+  "geen match") — allemaal identiek aan vóór de migratie; `connect()` twee
+  keer achter elkaar werkt; `PRAGMA foreign_key_check`/`integrity_check`
+  schoon. Zie Les 12. Ook: `reccobeats.search_track()` geeft nu de `isrc`
+  mee, en `resync_playlist.py` registreert handmatig toegevoegde nummers als
+  track (met titel/artiesten uit Spotify) omdat de tabellen nu een track
+  vereisen. Onderweg ook een bestaande bug in `resync_playlist.py` gevonden
+  en gefixt: die las nog `item["track"]` i.p.v. `item["item"]` (zie
+  `SpotifyAPI.md`), zou dus een lege playlist zien en daardoor álle bekende
+  nummers op de blocklist zetten. Read-only getest tegen de echte playlist:
+  29 op Spotify, 29 lokaal bekend, geen verschillen.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

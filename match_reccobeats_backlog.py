@@ -56,7 +56,8 @@ def main():
         if match:
             db.save_match(conn, artist, title, match["uri"], match["name"],
                           [a["name"] for a in match["artists"]],
-                          source="reccobeats", reccobeats_id=match["reccobeats_id"])
+                          source="reccobeats", reccobeats_id=match["reccobeats_id"],
+                               isrc=match["isrc"])
             matched += 1
         else:
             # Bewust NIET opslaan als "geen match" — laat 'm onaangeraakt

@@ -297,3 +297,28 @@ hele batch te laten crashen. Daarna 353/500 (70,6%) succesvol gematcht.
 onvoorziene edge case (hier: een simpele lengte-eis) mag nooit de hele
 batch laten crashen — vang fouten per item af, niet alleen per verwachte
 foutcode (429).
+
+**Les 12 — Een primary key veranderen in SQLite: tabel opnieuw opbouwen,
+en de ouder-tabel nooit hernoemen.** Voor issue #2 (database los van
+Spotify) moesten vier tabellen van `spotify_uri` naar `track_id` als
+sleutel. SQLite kan geen primary key aanpassen met `ALTER TABLE`, dus
+elke tabel wordt opnieuw opgebouwd: `*_new` maken, kopiëren, oude droppen,
+hernoemen. Valkuil (bewust vermeden, niet zelf tegenaan gelopen): `tracks`
+hernoemen naar `tracks_old` zou de foreign keys van `track_artists` en
+`track_match` stilletjes naar de *hernoemde* tabel laten wijzen. Daarom
+wordt de nieuwe tabel hernoemd naar `tracks`, nooit andersom, en behouden
+de rijen hun oude `id`, zodat alle FK's kloppen. Verder:
+- de migratie draait in `db.connect()` **vóór** `SCHEMA`, anders slaat
+  `CREATE TABLE IF NOT EXISTS` de oude tabellen over en blijven ze in de
+  verkeerde vorm staan;
+- alles in één transactie, met een controle van de rijaantallen vóór en
+  na; klopt het niet, dan rollback (getest met een kunstmatige wees-rij in
+  `playlist_tracks`: migratie faalt, oude database onaangeroerd);
+- de oude kolom `tracks.source` deed twee dingen tegelijk ("welke dienst"
+  én "hoe zeker is de match") en is daarom gesplitst in `service` en
+  `verified`. Zonder die splitsing had een tweede muziekdienst niet
+  gepast.
+→ Bij een schemawijziging die een sleutel raakt: eerst een backup, dan de
+migratie testen op een *kopie* (twee keer achter elkaar draaien, zie Les
+8), en vergelijk de inhoud via de nieuwe API met een snapshot van vóór de
+migratie — rijaantallen alleen zeggen niet dat de inhoud klopt.

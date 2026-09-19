@@ -115,7 +115,8 @@ def main():
         db.save_match(conn, artist, title, uri,
                        match["name"] if match else None,
                        [a["name"] for a in match["artists"]] if match else None,
-                       source=source, reccobeats_id=reccobeats_id)
+                       source=source, reccobeats_id=reccobeats_id,
+                       isrc=match.get("isrc") if match else None)
         new_lookups += 1
         if uri:
             desired_uris.add(uri)

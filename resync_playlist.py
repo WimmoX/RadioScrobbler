@@ -13,16 +13,23 @@ from stations import STATIONS
 from sync_playlist import get_or_create_playlist, get_spotify_client
 
 
-def get_playlist_track_uris(sp, playlist_id: str) -> set[str]:
-    uris = set()
-    results = sp.playlist_items(playlist_id, fields="items.track.uri,next", additional_types=["track"])
+def get_playlist_tracks(sp, playlist_id: str) -> dict[str, tuple[str, list[str]]]:
+    """{uri: (title, artist names)} — the name/artists are needed to register
+    tracks added outside the script, since the local tables are keyed on tracks."""
+    tracks = {}
+    results = sp.playlist_items(
+        playlist_id, fields="items.item(uri,name,artists.name),next", additional_types=["track"],
+    )
     while results:
         for item in results["items"]:
-            track = item.get("track")
+            # Spotify's Feb 2026 migration renamed this field from "track" to "item"
+            # (see SpotifyAPI.md) — reading "track" gives None, i.e. an empty
+            # playlist, which would blocklist every known track.
+            track = item.get("item")
             if track and track.get("uri"):
-                uris.add(track["uri"])
+                tracks[track["uri"]] = (track["name"], [a["name"] for a in track.get("artists", [])])
         results = sp.next(results) if results.get("next") else None
-    return uris
+    return tracks
 
 
 def main():
@@ -42,12 +49,16 @@ def main():
     sp = get_spotify_client()
     playlist_id = get_or_create_playlist(sp, conn, station_slug, playlist_name)
 
-    actual_uris = get_playlist_track_uris(sp, playlist_id)
+    actual_tracks = get_playlist_tracks(sp, playlist_id)
+    actual_uris = set(actual_tracks)
     known_uris = db.get_playlist_tracks(conn, station_slug)
 
     added_manually = actual_uris - known_uris
     removed_manually = known_uris - actual_uris
 
+    for uri, (title, artist_names) in actual_tracks.items():
+        db.get_or_create_track(conn, uri, title, artist_names)
+    conn.commit()
     db.replace_playlist_tracks(conn, station_slug, list(actual_uris))
     db.add_to_blocklist(conn, station_slug, list(removed_manually))
 
