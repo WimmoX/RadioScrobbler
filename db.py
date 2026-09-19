@@ -40,7 +40,15 @@ CREATE TABLE IF NOT EXISTS artists (
 CREATE TABLE IF NOT EXISTS tracks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    spotify_uri TEXT NOT NULL UNIQUE
+    spotify_uri TEXT NOT NULL UNIQUE,
+    -- 'spotify' = confirmed directly via Spotify's own Search (authoritative).
+    -- 'reccobeats' = only found via ReccoBeats' search while Spotify was
+    -- unavailable; reccobeats_id lets us tell the two apart and compare
+    -- later. get_cached_match() treats 'reccobeats' rows as not fully
+    -- cached, so a future run retries Spotify and upgrades the source once
+    -- it succeeds.
+    source TEXT NOT NULL DEFAULT 'spotify',
+    reccobeats_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS track_artists (
@@ -112,29 +120,36 @@ CREATE TABLE IF NOT EXISTS search_quota_state (
 SEARCH_QUOTA_SEED_LIMIT = 300
 
 
-_PLAYS_MIGRATIONS = {
-    "daynr": "ALTER TABLE plays ADD COLUMN daynr INTEGER "
-             "GENERATED ALWAYS AS (CAST(strftime('%u', played_at) AS INTEGER)) VIRTUAL",
-    "hr": "ALTER TABLE plays ADD COLUMN hr INTEGER "
-          "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER)) VIRTUAL",
-    "daypart": "ALTER TABLE plays ADD COLUMN daypart INTEGER "
-               "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER) / 6) VIRTUAL",
+_MIGRATIONS = {
+    "plays": {
+        "daynr": "ALTER TABLE plays ADD COLUMN daynr INTEGER "
+                 "GENERATED ALWAYS AS (CAST(strftime('%u', played_at) AS INTEGER)) VIRTUAL",
+        "hr": "ALTER TABLE plays ADD COLUMN hr INTEGER "
+              "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER)) VIRTUAL",
+        "daypart": "ALTER TABLE plays ADD COLUMN daypart INTEGER "
+                   "GENERATED ALWAYS AS (CAST(strftime('%H', played_at) AS INTEGER) / 6) VIRTUAL",
+    },
+    "tracks": {
+        "source": "ALTER TABLE tracks ADD COLUMN source TEXT NOT NULL DEFAULT 'spotify'",
+        "reccobeats_id": "ALTER TABLE tracks ADD COLUMN reccobeats_id TEXT",
+    },
 }
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """Add columns to a `plays` table that pre-dates them. SQLite can't add a
-    STORED generated column via ALTER TABLE (only at CREATE TABLE time), so
-    an existing database gets VIRTUAL columns added on top instead — same
-    values, computed on read rather than on write."""
-    # table_xinfo (not table_info!) is needed here — table_info silently
-    # omits generated/virtual columns, which would make this "add if
-    # missing" check always think they're missing and crash every
-    # subsequent connect() with "duplicate column name".
-    existing = {row[1] for row in conn.execute("PRAGMA table_xinfo(plays)").fetchall()}
-    for column, statement in _PLAYS_MIGRATIONS.items():
-        if column not in existing:
-            conn.execute(statement)
+    """Add columns to tables that pre-date them. SQLite can't add a STORED
+    generated column via ALTER TABLE (only at CREATE TABLE time), so plays'
+    daynr/hr/daypart get added as VIRTUAL instead — same values, computed on
+    read rather than on write."""
+    for table, columns in _MIGRATIONS.items():
+        # table_xinfo (not table_info!) is needed here — table_info silently
+        # omits generated/virtual columns, which would make this "add if
+        # missing" check always think they're missing and crash every
+        # subsequent connect() with "duplicate column name".
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_xinfo({table})").fetchall()}
+        for column, statement in columns.items():
+            if column not in existing:
+                conn.execute(statement)
     conn.commit()
 
 
@@ -170,15 +185,21 @@ def recent_unique_tracks(conn: sqlite3.Connection, station_slug: str, since: dat
 
 
 def get_cached_match(conn: sqlite3.Connection, artist: str, title: str) -> tuple[bool, str | None]:
-    """Return (is_cached, spotify_uri). spotify_uri is None if cached as 'no match found'."""
+    """Return (is_cached, spotify_uri). spotify_uri is None if cached as 'no
+    match found'. A track only found via ReccoBeats (source='reccobeats',
+    see tracks table) counts as NOT cached, so a later run — once Spotify is
+    available again — retries it there and upgrades the source on success."""
     row = conn.execute(
-        "SELECT t.spotify_uri FROM track_match tm LEFT JOIN tracks t ON t.id = tm.track_id "
+        "SELECT t.spotify_uri, t.source FROM track_match tm LEFT JOIN tracks t ON t.id = tm.track_id "
         "WHERE tm.artist_text = ? AND tm.title_text = ?",
         (artist.lower(), title.lower()),
     ).fetchone()
     if row is None:
         return False, None
-    return True, row[0]
+    spotify_uri, source = row
+    if spotify_uri is None:
+        return True, None
+    return source == "spotify", spotify_uri
 
 
 def get_or_create_artist(conn: sqlite3.Connection, name: str) -> int:
@@ -188,13 +209,24 @@ def get_or_create_artist(conn: sqlite3.Connection, name: str) -> int:
     return conn.execute("INSERT INTO artists (name) VALUES (?)", (name,)).lastrowid
 
 
-def get_or_create_track(conn: sqlite3.Connection, spotify_uri: str, title: str, artist_names: list[str]) -> int:
-    row = conn.execute("SELECT id FROM tracks WHERE spotify_uri = ?", (spotify_uri,)).fetchone()
+def get_or_create_track(
+    conn: sqlite3.Connection, spotify_uri: str, title: str, artist_names: list[str],
+    source: str = "spotify", reccobeats_id: str | None = None,
+) -> int:
+    row = conn.execute("SELECT id, source FROM tracks WHERE spotify_uri = ?", (spotify_uri,)).fetchone()
     if row:
-        track_id = row[0]
+        track_id, existing_source = row
+        if source == "spotify" and existing_source != "spotify":
+            conn.execute("UPDATE tracks SET source = 'spotify' WHERE id = ?", (track_id,))
+        if reccobeats_id:
+            conn.execute(
+                "UPDATE tracks SET reccobeats_id = COALESCE(reccobeats_id, ?) WHERE id = ?",
+                (reccobeats_id, track_id),
+            )
     else:
         track_id = conn.execute(
-            "INSERT INTO tracks (title, spotify_uri) VALUES (?, ?)", (title, spotify_uri),
+            "INSERT INTO tracks (title, spotify_uri, source, reccobeats_id) VALUES (?, ?, ?, ?)",
+            (title, spotify_uri, source, reccobeats_id),
         ).lastrowid
     for name in artist_names:
         artist_id = get_or_create_artist(conn, name)
@@ -207,12 +239,18 @@ def get_or_create_track(conn: sqlite3.Connection, spotify_uri: str, title: str, 
 def save_match(
     conn: sqlite3.Connection, artist: str, title: str,
     spotify_uri: str | None, track_title: str | None = None, artist_names: list[str] | None = None,
+    source: str = "spotify", reccobeats_id: str | None = None,
 ) -> None:
-    """`track_title`/`artist_names` are Spotify's own (title, artist list) for the
-    matched track — pass None/omit when spotify_uri is None (no match found)."""
+    """`track_title`/`artist_names` are the matched track's own (title, artist
+    list) — from Spotify if source='spotify', from ReccoBeats if
+    source='reccobeats' — pass None/omit when spotify_uri is None (no match
+    found anywhere)."""
     track_id = None
     if spotify_uri:
-        track_id = get_or_create_track(conn, spotify_uri, track_title or title, artist_names or [artist])
+        track_id = get_or_create_track(
+            conn, spotify_uri, track_title or title, artist_names or [artist],
+            source=source, reccobeats_id=reccobeats_id,
+        )
     conn.execute(
         "INSERT OR REPLACE INTO track_match (artist_text, title_text, track_id, matched_at) VALUES (?, ?, ?, ?)",
         (artist.lower(), title.lower(), track_id, datetime.now().isoformat()),

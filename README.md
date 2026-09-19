@@ -42,6 +42,14 @@ public Spotify playlist called **[RadioScrobbled](https://open.spotify.com/playl
 - 🎵 **Audio profile per track** (optional, via
   [ReccoBeats](https://reccobeats.com)) — energy, danceability, valence,
   tempo and more, free and without an API key. See `RECCOBEATS.md`.
+- 📊 **Self-calibrating Spotify quota budget** — Spotify doesn't publish its
+  Development Mode Search limit, so the sync scripts discover it
+  empirically instead of guessing (and remember when they've been blocked,
+  so they don't hammer the API for nothing).
+- 🔄 **ReccoBeats as a matching fallback** — if Spotify's Search is
+  temporarily unavailable, matching keeps going via ReccoBeats instead of
+  stopping; those matches get quietly re-confirmed against Spotify on a
+  later run.
 - 🗄️ Everything lives in a plain local SQLite file — no external database
   needed to get started.
 

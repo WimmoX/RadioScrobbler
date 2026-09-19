@@ -248,3 +248,35 @@ is de enige situatie met echt bewijs dat er ruimte over is.
 → Bij "verhoog bij succes"-logica: check dat "succes" ook echt betekent dat
 je de grens hebt opgezocht, niet gewoon "er ging niets mis" — die twee
 lijken op elkaar maar zijn niet hetzelfde bewijs.
+
+**Les 11 — ReccoBeats als fallback-bron, en een matching-eigenaardigheid
+die er niet bij Spotify is.** Toen Spotify's eigen Search geblokkeerd was
+(zie Les 10), bleek `api.reccobeats.com/v1/track/search` een bruikbare,
+gratis, ongeauthenticeerde tweede bron — geeft altijd een Spotify-URI
+terug zodra hij iets vindt. Twee dingen die anders werken dan bij Spotify:
+1. **`searchText` is (vrij) letterlijk, niet fuzzy.** `"{artist} {title}"`
+   samen ("Blind Guardian Bright Eyes") gaf vaak **0** resultaten, ook voor
+   nummers die wél in hun catalogus zitten — die exacte frase komt
+   nergens letterlijk voor. Een titel-only query ("Bright Eyes") vond
+   'm wél, gewoon op positie 9 van 200 resultaten. Fix: zoek op titel
+   alleen (met een grotere pagina, `size=50`, voor betere dekking) en laat
+   onze eigen `best_candidate()`/artiest-matching de juiste artiest eruit
+   filteren — precies dezelfde aanpak als bij Spotify's eigen, soms-
+   onbetrouwbare ranking (Les 7).
+2. **Circulaire import bij hergebruik van de matching-logica.** `reccobeats.py`
+   heeft dezelfde `best_candidate()`-logica nodig als `sync_playlist.py`,
+   maar `sync_playlist.py` moet op zijn beurt `reccobeats` kunnen
+   aanroepen als fallback — een directe import over en weer loopt vast.
+   Opgelost door de tekst-matchlogica (die toch geen Spotify-specifieke
+   code bevat) te verhuizen naar een eigen `matching.py`, waar beide
+   modules onafhankelijk van importeren.
+
+Nieuwe kolommen op `tracks`: `source` ('spotify' = direct bevestigd,
+'reccobeats' = alleen via de fallback gevonden) en `reccobeats_id`.
+`get_cached_match()` behandelt `source='reccobeats'`-rijen als *niet*
+definitief gecached, dus een latere run probeert Spotify vanzelf opnieuw en
+upgrade't `source` bij succes — zonder duplicaat (getest: track-aantal
+blijft gelijk, `reccobeats_id` blijft bewaard voor het betrouwbaarheids-
+inzicht). Live getest tegen de actieve blokkade van vandaag: 7/8 losse
+testnummers correct gematcht via ReccoBeats, en één upgrade-scenario
+(Spotify bevestigt exact dezelfde track die ReccoBeats al gaf) geverifieerd.

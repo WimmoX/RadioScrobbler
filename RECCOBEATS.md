@@ -87,6 +87,29 @@ Veldbetekenis (identiek aan het oude Spotify-schema):
 | `loudness` | Gemiddeld volume in dB |
 | `key` / `mode` | Toonsoort / majeur(1)-mineur(0) |
 
+### `GET /v1/track/search?searchText=...&size=...`
+Tekst-zoekfunctie — bruikbaar als gratis, ongeauthenticeerde fallback voor
+Spotify's eigen Search wanneer die geblokkeerd is (zie
+`LessonsLearned.md`, Les 11).
+
+```
+curl "https://api.reccobeats.com/v1/track/search?searchText=Bright+Eyes&size=50"
+```
+Response-vorm gelijk aan `/v1/track` hierboven (`content: [...]`), met
+`totalElements`/`page`/`size` erbij voor paginering.
+
+**Let op — dit is geen fuzzy full-text search zoals Spotify's.**
+`searchText` lijkt een vrij letterlijke frase-match te zijn: artiest+titel
+samen opgeven (`"Blind Guardian Bright Eyes"`) gaf herhaaldelijk **0**
+resultaten voor nummers die wél in de catalogus zitten, terwijl een
+titel-only query (`"Bright Eyes"`) het gezochte nummer gewoon terugvond
+(op positie 9 van 200 resultaten, dus met een ruimere `size` was het bijna
+gemist). Praktisch advies: zoek op titel alleen, met een royale `size`, en
+filter zelf op de juiste artiest uit de resultaten — zie
+`reccobeats.py:search_track()`, die hiervoor dezelfde `best_candidate()`-
+matchlogica hergebruikt als voor Spotify's eigen zoekresultaten
+(`matching.py`).
+
 ## Batchen (meerdere nummers in één call)
 Twee ondersteunde vormen, beide getest en werkend:
 ```

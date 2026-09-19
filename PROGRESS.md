@@ -53,7 +53,7 @@ Losse database i.p.v. rechtstreeks tegen Spotify praten, om drie redenen:
 
 Tabellen:
 - `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie Les 8.
-- `artists` (id, naam) / `tracks` (id, titel, Spotify-URI) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen.
+- `artists` (id, naam) / `tracks` (id, titel, Spotify-URI, `source`, `reccobeats_id`) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen. `source` is `'spotify'` (direct bevestigd) of `'reccobeats'` (alleen via de fallback gevonden, zie Les 11 — telt als niet-definitief-gecached totdat een latere run Spotify erbij haalt).
 - `track_match` (artiest-tekst, titel-tekst) → track_id (of `NULL` = bewust "geen match gevonden", ook gecached) — de brug tussen `plays`' platte tekst en een genormaliseerd `track`. `plays` zelf blijft platte tekst (zie hierboven) en wordt dus nooit verplicht een match te hebben voordat een scrape kan landen.
 - `playlists` — station_slug → Spotify playlist-ID (voorkomt dat we elke run opnieuw playlists moeten opzoeken).
 - `playlist_tracks` — wat we denken dat er (per zender) in de Spotify-playlist staat.
@@ -65,6 +65,14 @@ Tabellen:
   calibrerend budget voor Spotify Search-calls, zie Les 10 in
   `LessonsLearned.md`. Gebruikt door `sync_playlist.py`/`build_playlist.py`
   vóór elke nieuwe matching-poging.
+- **`matching.py`** (module) — de tekst-matchlogica (`best_candidate()`,
+  titel-/artiestvergelijking) losgetrokken uit `sync_playlist.py` zodat
+  `reccobeats.py` 'm ook kan gebruiken zonder circulaire import (zie Les 11).
+- **`reccobeats.py`** (module) — `search_track()`: gratis, ongeauthenticeerd
+  fallback-zoekpad via ReccoBeats voor als Spotify's Search geblokkeerd is.
+  Wordt automatisch ingezet door `sync_playlist.py`/`build_playlist.py`
+  zodra `quota.QuotaBlocked`/`QuotaExhausted` optreedt — de rest van die run
+  gaat dan verder op ReccoBeats i.p.v. te stoppen.
 - **`scrape.py [station]`** — haalt de laatste 7 dagen op van OnlineRadioBox en
   slaat ze op in `plays`. Geen Spotify-calls, dus altijd veilig om te draaien.
   Draai dit regelmatig (dagelijks) om historie op te bouwen.
@@ -188,6 +196,15 @@ aanlopen.
   actieve blokkade van vandaag: `QuotaBlocked` wordt nu binnen 0,08s
   herkend (i.p.v. 5 nutteloze retries), met de échte `reason:
   "QUOTA_EXCEEDED"` en `Retry-After`. Budget gestart op 300 calls/24u.
+- **2026-09-19 (nog later)**: `quota.SearchBudget` bugfix (verhoogde limiet
+  ten onrechte bij elke kleine, blokkadevrije run — nu alleen als de limiet
+  ook echt is opgezocht). Daarna: ReccoBeats als fallback-zoekpad gebouwd
+  (`reccobeats.py`) voor als Spotify geblokkeerd is, matching-logica
+  losgetrokken naar `matching.py` om de circulaire import te vermijden, en
+  `tracks` uitgebreid met `source`/`reccobeats_id`. Live getest tegen de
+  nog actieve blokkade van vandaag: 7/8 nummers correct via ReccoBeats
+  gematcht, en het "upgrade bij Spotify-bevestiging"-pad geverifieerd
+  (geen duplicaat, `source` correct bijgewerkt). Zie Les 11.
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren
