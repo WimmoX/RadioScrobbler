@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 import db
 import quota
-import reccobeats
+from resolve import Resolver
 from sync_playlist import filter_liked, find_track_match, get_or_create_playlist, get_spotify_client, _batched
 
 LOG_DIR = "logs"
@@ -78,62 +78,25 @@ def main():
 
     sp = get_spotify_client()
     budget = quota.SearchBudget(conn)
-    spotify_available = True
+    resolver = Resolver(conn, sp, budget, find_track_match, total=len(tracks))
     log_lines = [f"Kandidaten: {len(tracks)} (daynr={args.daynr or 'alle'}, "
                  f"daypart={args.daypart or 'alle'}, exclude={args.exclude_station})"]
 
+    notes = {"cached": " (cached)", "reccobeats": "  (via ReccoBeats)",
+             "candidate": "  (ReccoBeats-kandidaat, nog niet door Spotify bevestigd)",
+             "untried": "  (niet geprobeerd: Spotify niet beschikbaar)"}
     desired_uris = set()
-    new_lookups = 0
-    reccobeats_fallbacks = 0
     for artist, title, plays in tracks:
-        is_cached, uri = db.get_cached_match(conn, artist, title)
-        if is_cached:
-            if uri:
-                desired_uris.add(uri)
-            log_lines.append(f"{'OK  ' if uri else 'MISS'}  {plays:3}x  {artist} - {title} (cached)")
-            continue
-
-        match, source, reccobeats_id = None, None, None
-        if spotify_available:
-            try:
-                match = find_track_match(sp, artist, title, budget)
-                source = "spotify"
-            except quota.QuotaExhausted:
-                spotify_available = False
-            except quota.QuotaBlocked as e:
-                budget.record_block(e.retry_after_seconds)
-                spotify_available = False
-
-        if match is None and not spotify_available:
-            match = reccobeats.search_track(artist, title)
-            if match:
-                source = "reccobeats"
-                reccobeats_id = match["reccobeats_id"]
-                reccobeats_fallbacks += 1
-
-        if match is None and source is None:
-            # Spotify was never asked about this track (its budget ran out first) and
-            # ReccoBeats found nothing: not a real "no match". Leave it unattempted so a
-            # later run can still try Spotify.
-            continue
-
-        uri = match["uri"] if match else None
-        db.save_match(conn, artist, title, uri,
-                       match["name"] if match else None,
-                       [a["name"] for a in match["artists"]] if match else None,
-                       source=source, reccobeats_id=reccobeats_id,
-                       isrc=match.get("isrc") if match else None)
-        new_lookups += 1
+        uri, how = resolver.resolve(artist, title)
         if uri:
             desired_uris.add(uri)
-        tag = " (via ReccoBeats)" if source == "reccobeats" else ""
         log_lines.append(f"{'OK  ' if uri else 'MISS'}  {plays:3}x  {artist} - {title}" +
-                          (f"  -> {uri}{tag}" if uri else ""))
+                          (f"  -> {uri}" if uri and how != "cached" else "") + notes.get(how, ""))
     budget.finish()
-    if not spotify_available:
+    if not resolver.spotify_available:
         log_lines.append(f"Spotify Search unavailable for the rest of this run "
                           f"(limit={budget.limit}/24h, blocked_until={budget.blocked_until}); "
-                          f"{reccobeats_fallbacks} tracks matched via ReccoBeats instead")
+                          f"{resolver.reccobeats_lookups} tracks looked up via ReccoBeats instead")
 
     known_uris = db.get_playlist_tracks(conn, playlist_key)
     blocked_uris = db.get_blocklist(conn, playlist_key)
@@ -155,9 +118,9 @@ def main():
     with open(log_path, "w") as f:
         f.write("\n".join(log_lines) + "\n")
 
-    print(f"Kandidaten: {len(tracks)}, gematcht: {len(desired_uris)} ({new_lookups} nieuwe lookups"
-          + (f", {reccobeats_fallbacks} via ReccoBeats fallback" if reccobeats_fallbacks else "") + ")")
-    if not spotify_available:
+    print(f"Kandidaten: {len(tracks)}, gematcht: {len(desired_uris)} ({resolver.new_lookups} nieuwe lookups: "
+          f"{resolver.spotify_lookups} Spotify, {resolver.reccobeats_lookups} ReccoBeats)")
+    if not resolver.spotify_available:
         print(f"Spotify Search unavailable this run — used ReccoBeats where possible; "
               f"unverified matches will retry Spotify next run.")
     print(f"Playlist '{args.playlist_name}': +{len(to_add)} -{len(to_remove)} (nu {len(desired_uris)} totaal)")

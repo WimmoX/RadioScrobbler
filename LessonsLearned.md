@@ -345,3 +345,19 @@ en hoort alleen geregistreerd te worden voor die bron. Een fallback die
 níéts vindt, mag nooit "niets" als definitief antwoord van de primaire bron
 laten doorgaan. En: een teller die uit een logboek wordt afgeleid, is
 alleen zo goed als het logboek compleet is.
+
+*Vervolg op Les 13 (2026-09-20, `resolve.py`):* dezelfde beslislogica
+("welke bron vragen we, en wat mag er gecachet worden") stond dubbel in
+`sync_playlist.py` en `build_playlist.py`, en de Les 13-bug moest daardoor
+op twee plekken worden gerepareerd. Nu staat het op één plek
+(`resolve.py`, klasse `Resolver`) en gebruiken beide scripts die. Tegelijk
+opgelost (issue #3): een ReccoBeats-miss wordt onthouden als
+`track_match(service='reccobeats')` — een claim over ReccoBeats alleen,
+niets over Spotify — zodat dezelfde missers niet elke run opnieuw ~2
+seconden kosten; en een eerder gevonden ReccoBeats-kandidaat wordt bij een
+volgende run hergebruikt in plaats van opnieuw opgezocht. Bijkomend: scripts
+die een half uur draaien moeten onderweg iets laten zien — beide scripts
+printen nu elke 100 nummers een voortgangsregel (aantal, lookups per bron,
+verstreken tijd), omdat een stille run van 15+ minuten er "bevroren" uitziet.
+→ Logica die bepaalt wat je als waar opslaat, hoort op één plek te staan;
+twee kopieën repareer je uiteindelijk één keer te weinig.

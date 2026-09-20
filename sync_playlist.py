@@ -13,8 +13,8 @@ from spotipy.oauth2 import SpotifyOAuth
 
 import db
 import quota
-import reccobeats
 from matching import best_candidate
+from resolve import Resolver
 from retry import RateLimited, call_with_retry
 from stations import STATIONS
 
@@ -150,60 +150,17 @@ def main():
 
     sp = get_spotify_client()
     budget = quota.SearchBudget(conn)
-    spotify_available = True
+    resolver = Resolver(conn, sp, budget, find_track_match, total=len(tracks))
 
     desired_uris = set()
-    new_lookups = 0
-    reccobeats_fallbacks = 0
     for artist, title in tracks:
-        is_cached, uri = db.get_cached_match(conn, artist, title)
-        if is_cached:
-            if uri:
-                desired_uris.add(uri)
-            continue
-
-        match, source, reccobeats_id = None, None, None
-        if spotify_available:
-            try:
-                match = find_track_match(sp, artist, title, budget)
-                source = "spotify"
-            except quota.QuotaExhausted:
-                spotify_available = False
-            except quota.QuotaBlocked as e:
-                budget.record_block(e.retry_after_seconds)
-                spotify_available = False
-
-        # Spotify's Search is unavailable for the rest of this run — fall
-        # back to ReccoBeats (no quota of its own observed so far) instead
-        # of stopping the whole run. Unverified until a later run, once
-        # Spotify is available again, confirms it (db.get_cached_match()
-        # treats source='reccobeats' as not-yet-cached for that reason).
-        if match is None and not spotify_available:
-            match = reccobeats.search_track(artist, title)
-            if match:
-                source = "reccobeats"
-                reccobeats_id = match["reccobeats_id"]
-                reccobeats_fallbacks += 1
-
-        if match is None and source is None:
-            # Spotify was never asked about this track (its budget ran out first) and
-            # ReccoBeats found nothing: not a real "no match". Leave it unattempted so a
-            # later run can still try Spotify.
-            continue
-
-        uri = match["uri"] if match else None
-        db.save_match(conn, artist, title, uri,
-                       match["name"] if match else None,
-                       [a["name"] for a in match["artists"]] if match else None,
-                       source=source, reccobeats_id=reccobeats_id,
-                       isrc=match.get("isrc") if match else None)
-        new_lookups += 1
+        uri, _ = resolver.resolve(artist, title)
         if uri:
             desired_uris.add(uri)
     budget.finish()
-    print(f"Matched {len(desired_uris)}/{len(tracks)} tracks ({new_lookups} new lookups"
-          + (f", {reccobeats_fallbacks} via ReccoBeats fallback" if reccobeats_fallbacks else "") + ")")
-    if not spotify_available:
+    print(f"Matched {len(desired_uris)}/{len(tracks)} tracks ({resolver.new_lookups} new lookups: "
+          f"{resolver.spotify_lookups} Spotify, {resolver.reccobeats_lookups} ReccoBeats)")
+    if not resolver.spotify_available:
         print(f"Spotify Search unavailable for the rest of this run (limit={budget.limit}/24h, "
               f"blocked_until={budget.blocked_until}) — used ReccoBeats where possible; "
               f"unverified matches will retry Spotify next run.")

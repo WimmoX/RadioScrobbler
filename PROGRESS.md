@@ -233,6 +233,18 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   gecachet terwijl Spotify het nummer nooit had gezien (361 rijen, zie
   Les 13). Stand daarna: 957 Spotify-bevestigd, 1.692 nog als kandidaat
   (ReccoBeats), 4.983 van de 7.708 unieke nummers nog nooit geprobeerd.
+- **2026-09-20 (avond)**: `resolve.py` (klasse `Resolver`) gebouwd — de
+  gedeelde beslislogica van `sync_playlist.py`/`build_playlist.py`: cache →
+  Spotify (zolang het budget strekt) → ReccoBeats. ReccoBeats-missers worden
+  onthouden (`track_match`, `service='reccobeats'`, issue #3), een eerder
+  gevonden ReccoBeats-kandidaat wordt hergebruikt, en er komt elke 100
+  nummers een voortgangsregel. `match_reccobeats_backlog.py` slaat zijn
+  missers nu ook op. Eerste run met de nieuwe code: NPO Radio 2 —
+  1.465 unieke nummers, 1.180 nieuwe lookups (allemaal ReccoBeats, Spotify-
+  budget was op) in 37m46s (~1,9 s per lookup), 1.151 nummers in de
+  playlist. Stand daarna: 978 Spotify-bevestigd, 2.539 ReccoBeats-
+  kandidaten, 306 ReccoBeats-missers onthouden, 3.777 van de 7.708 unieke
+  nummers nog nooit geprobeerd. Spotify-limiet nu 360/24u.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
