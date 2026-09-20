@@ -21,7 +21,7 @@ import db
 import quota
 import reccobeats
 
-PROGRESS_EVERY = 100
+PROGRESS_EVERY = 200
 
 
 class Resolver:

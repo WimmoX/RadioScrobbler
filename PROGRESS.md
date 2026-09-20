@@ -245,6 +245,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   playlist. Stand daarna: 978 Spotify-bevestigd, 2.539 ReccoBeats-
   kandidaten, 306 ReccoBeats-missers onthouden, 3.777 van de 7.708 unieke
   nummers nog nooit geprobeerd. Spotify-limiet nu 360/24u.
+- **2026-09-20 (avond, vervolg)**: de overige drie zenders achter elkaar
+  gematcht met de nieuwe `Resolver` (voortgangsregel nu elke 200 nummers):
+  Zeilsteen 841/1.684 (50%, 42 min), KINK Distortion 363/472 (77%, 12 min),
+  SLAM! Non Stop 382/554 (69%, 18 min). Bijna alles via ReccoBeats; de
+  Spotify-limiet groeide per run met +25 (360 → 385 → 410 → 435) doordat
+  steeds de paar net vrijgekomen calls werden opgemaakt. Zeilsteen scoort
+  het laagst — nog niet onderzocht of dat aan ReccoBeats' dekking van
+  minder bekende nummers ligt of aan hoe de titels/artiesten in de bron
+  staan.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

@@ -25,7 +25,7 @@ import db
 import reccobeats
 
 DEFAULT_LIMIT = 300
-PROGRESS_EVERY = 100
+PROGRESS_EVERY = 200
 
 
 def get_unattempted(conn, limit):
