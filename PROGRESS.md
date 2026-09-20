@@ -84,6 +84,15 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   ReccoBeats, zonder het Spotify-budget aan te spreken (ReccoBeats heeft
   vooralsnog geen eigen quota getoond). Misses worden bewust niet als
   "definitief geen match" opgeslagen — Spotify mag het later nog proberen.
+- **`match_tracks.py [station ...] [--days N] [--limit N]`** — matcht
+  gespeelde nummers en **doet verder niets**: geen playlists aangemaakt of
+  gewijzigd, alleen de lokale match-tabellen gevuld. Zonder argumenten: alle
+  zenders, alle historie. Gebruikt dezelfde bronvolgorde als
+  `sync_playlist.py` (`resolve.py`: cache → Spotify zolang het budget strekt
+  → ReccoBeats), met een voortgangsregel elke 200 nummers en een korte
+  samenvatting. Bedoeld zodat matchen los staat van playlists bouwen (die
+  ontwerp je later, bv. "Zeilsteen top 100"). Getest met `--limit 5`:
+  5 Spotify-lookups, `playlist_tracks` ongewijzigd.
 - **`scrape.py [station]`** — haalt de laatste 7 dagen op van OnlineRadioBox en
   slaat ze op in `plays`. Geen Spotify-calls, dus altijd veilig om te draaien.
   Draai dit regelmatig (dagelijks) om historie op te bouwen.

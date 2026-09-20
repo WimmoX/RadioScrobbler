@@ -123,6 +123,7 @@ file under `logs/` instead, so this stays cheap to run from anywhere
 | Script | Does what | Talks to Spotify? |
 |---|---|---|
 | `scrape.py` | Fetches recently played tracks and stores them | ❌ |
+| `match_tracks.py` | Matches played tracks to Spotify only — never touches a playlist | ✅ (Search) |
 | `sync_playlist.py` | Matches tracks, computes the diff, updates the playlist | ✅ |
 | `resync_playlist.py` | Reconciles the local cache with the real playlist contents | ✅ |
 | `fetch_audio_features.py` | Fetches energy/valence/etc. via ReccoBeats | ❌ (ReccoBeats instead) |
