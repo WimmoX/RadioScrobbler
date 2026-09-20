@@ -322,3 +322,26 @@ de rijen hun oude `id`, zodat alle FK's kloppen. Verder:
 migratie testen op een *kopie* (twee keer achter elkaar draaien, zie Les
 8), en vergelijk de inhoud via de nieuwe API met een snapshot van vóór de
 migratie — rijaantallen alleen zeggen niet dat de inhoud klopt.
+
+**Les 13 — Een "geen match" mag alleen gecachet worden door de bron die het
+echt heeft geprobeerd.** Tijdens de eerste echte Spotify-run na de ban
+(`sync_playlist.py pingclass`) raakte Spotify's eigen budget op na 300
+calls en nam ReccoBeats het over voor de rest. Bij een ReccoBeats-miss
+schreven `sync_playlist.py` en `build_playlist.py` toch een definitief
+"geen match" weg (`track_id = NULL`), terwijl Spotify dat nummer nooit had
+gezien: 361 nummers zijn zo onterecht afgeschreven en zouden nooit meer bij
+Spotify zijn beland. `match_reccobeats_backlog.py` deed dit al goed (een
+ReccoBeats-miss blijft "ongeprobeerd"), maar de twee andere scripts niet.
+Fix: alleen cachen als de bron in kwestie daadwerkelijk is gevraagd
+(`source` is gezet); anders het nummer overslaan. De 361 onterechte rijen
+zijn herkend aan hun tijdstip (na de laatste `search_calls`-regel) en uit
+`track_match` verwijderd; de 86 echte Spotify-missers bleven staan.
+Gerelateerd: de limiet stond na de blokkade op 0 omdat `record_block()` de
+limiet zet op het aantal gelogde calls van de laatste 24u, en de calls
+die de blokkade veroorzaakten stonden nog niet in het logboek. Een aantal
+van 0 zegt niets over het echte plafond en wordt nu genegeerd.
+→ Een negatief resultaat ("bestaat niet") is een bewering over één bron,
+en hoort alleen geregistreerd te worden voor die bron. Een fallback die
+níéts vindt, mag nooit "niets" als definitief antwoord van de primaire bron
+laten doorgaan. En: een teller die uit een logboek wordt afgeleid, is
+alleen zo goed als het logboek compleet is.

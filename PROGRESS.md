@@ -217,6 +217,22 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   `SpotifyAPI.md`), zou dus een lege playlist zien en daardoor álle bekende
   nummers op de blocklist zetten. Read-only getest tegen de echte playlist:
   29 op Spotify, 29 lokaal bekend, geen verschillen.
+- **2026-09-20 (Spotify-ban voorbij, eerste echte batches)**: quota-limiet
+  teruggezet van 0 naar 300 (zie Les 13) en de stap opgehoogd van +10 naar
+  **+25** (anders duurt het te lang om het plafond te vinden). Eerste run
+  (`sync_playlist.py pingclass`): 300 Spotify-calls zonder één 429 — het
+  echte plafond ligt dus boven 300 — daarna nam ReccoBeats het over; limiet
+  werd 310. Tweede batch (`sync_playlist.py kinkclassics`, 09:21): 10 vrije
+  Spotify-calls, limiet 310 → **335**; 546/676 tracks in de playlist.
+  Gemeten doorlooptijd: Spotify ~0,6 s per call (300 calls ≈ 3 min);
+  ReccoBeats ~1,6–2,2 s per lookup (1.464 lookups ≈ 39 min; 455 lookups ≈
+  17 min). De trage kant is dus ReccoBeats, niet Spotify — en beide
+  scripts printen pas iets *na* afloop, dus een run van 15+ minuten ziet er
+  bevroren uit. Bug gevonden en gefixt: een ReccoBeats-miss werd door
+  `sync_playlist.py`/`build_playlist.py` als definitieve "geen match"
+  gecachet terwijl Spotify het nummer nooit had gezien (361 rijen, zie
+  Les 13). Stand daarna: 957 Spotify-bevestigd, 1.692 nog als kandidaat
+  (ReccoBeats), 4.983 van de 7.708 unieke nummers nog nooit geprobeerd.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

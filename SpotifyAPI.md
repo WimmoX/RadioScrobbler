@@ -36,7 +36,7 @@ naslag-versie daarvan.
   400-800 daadwerkelijke HTTP-calls, want een deel van die matches kostte 2
   calls — zie "Search-strategie" hieronder). We houden nu zelf een
   conservatieve, **zelf-calibrerende** limiet aan — zie `quota.py`: start op
-  300 calls/rollend-24u, +10 bij een run die de limiet succesvol opzoekt
+  300 calls/rollend-24u, +25 bij een run die de limiet succesvol opzoekt
   zonder blokkade, terug-snappen naar het werkelijke aantal bij een échte
   blokkade.
 - **Quota-buckets**: verschillende soorten endpoints lijken een apart

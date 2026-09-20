@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import db
 
-STEP = 10
+STEP = 25
 
 
 class QuotaExhausted(Exception):
@@ -54,7 +54,12 @@ class SearchBudget:
     def record_block(self, retry_after_seconds: int) -> None:
         """Call when Spotify returns a 429 we're treating as a real block."""
         actual = db.search_calls_in_last_24h(self.conn)
-        self.limit = actual
+        # 0 logged calls says nothing about the real ceiling (e.g. the calls
+        # that caused the block pre-date the call log): snapping to 0 would
+        # make every later run instantly "exhausted" and only creep up by
+        # STEP per run. Keep the current limit in that case.
+        if actual > 0:
+            self.limit = actual
         self.blocked_until = datetime.now() + timedelta(seconds=retry_after_seconds)
         db.set_call_limit(self.conn, self.limit)
         db.set_blocked_until(self.conn, self.blocked_until.isoformat())

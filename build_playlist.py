@@ -111,6 +111,12 @@ def main():
                 reccobeats_id = match["reccobeats_id"]
                 reccobeats_fallbacks += 1
 
+        if match is None and source is None:
+            # Spotify was never asked about this track (its budget ran out first) and
+            # ReccoBeats found nothing: not a real "no match". Leave it unattempted so a
+            # later run can still try Spotify.
+            continue
+
         uri = match["uri"] if match else None
         db.save_match(conn, artist, title, uri,
                        match["name"] if match else None,
