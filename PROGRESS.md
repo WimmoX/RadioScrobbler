@@ -342,6 +342,14 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   `build_playlist.py`: "RadioScrobbler - Kink Distortion Sunday morning"
   (`--daynr 7 --daypart 1 --top 90`, zes andere zenders uitgesloten): 88 van
   de 90 nummers, waarvan 80 door Spotify bevestigd.
+- **2026-09-21 (playlists vullen tot N)**: `build_playlist.py --top N` levert
+  nu N nummers *met een Spotify-id*: een nummer zonder id wordt overgeslagen
+  en het volgende in de ranglijst neemt de plek in (kijkt naar maximaal
+  N × 5 kandidaten). Twee playlists gebouwd met `--exclude-station`
+  (`--station` bestaat nog niet, RS-PLAY-01): "RadioScrobbler - Zeilsteen
+  Top 90" (90 nummers, 64 bevestigd, 26 kandidaat; Zeilsteen heeft maar 9
+  dagen data) en "RadioScrobbler - Kink Distortion Sunday morning" (`--daynr 7
+  --daypart 1`, 90 nummers, alle 90 door Spotify bevestigd). 33 tests.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

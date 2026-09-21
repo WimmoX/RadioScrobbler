@@ -6,6 +6,10 @@ list: this is meant to be run standalone (or by an LLM-driven workflow)
 without the whole track dump needing to pass through it. Full detail goes
 to a log file under logs/ instead.
 
+--top N means N tracks *with a Spotify id*: a track that can't be added because
+it has none is skipped and the next one down the ranking takes its place, so
+the playlist really gets N tracks (scanning at most N x LOOKAHEAD candidates).
+
 Examples:
     # vrijdagavond top 30
     python build_playlist.py "RadioScrobbler - Vrijdagavond" --daynr 5 --daypart 3
@@ -26,6 +30,7 @@ from resolve import Resolver
 from sync_playlist import filter_liked, find_track_match, get_or_create_playlist, get_spotify_client, _batched
 
 LOG_DIR = "logs"
+LOOKAHEAD = 5   # look at most this many times --top candidates for tracks that have an id
 
 
 def top_tracks(conn, daynrs, dayparts, exclude_stations, limit):
@@ -51,6 +56,27 @@ def top_tracks(conn, daynrs, dayparts, exclude_stations, limit):
     return conn.execute(query, [*params, limit]).fetchall()
 
 
+def pick_tracks(resolver, candidates, top, log_lines=None):
+    """Walk `candidates` (artist, title, plays), most played first, and keep the
+    ones that resolve to a Spotify id until `top` distinct ones are found.
+    Returns (uris in ranking order, number of candidates looked at)."""
+    notes = {"cached": " (cached)", "reccobeats": "  (via ReccoBeats)",
+             "candidate": "  (ReccoBeats-kandidaat, nog niet door Spotify bevestigd)",
+             "untried": "  (niet geprobeerd: Spotify niet beschikbaar)"}
+    uris, scanned = [], 0
+    for artist, title, plays in candidates:
+        if len(uris) >= top:
+            break
+        scanned += 1
+        uri, how = resolver.resolve(artist, title)
+        if uri and uri not in uris:
+            uris.append(uri)
+        if log_lines is not None:
+            log_lines.append(f"{'OK  ' if uri else 'MISS'}  {plays:3}x  {artist} - {title}" +
+                             (f"  -> {uri}" if uri and how != "cached" else "") + notes.get(how, ""))
+    return uris, scanned
+
+
 def _slugify(name: str) -> str:
     return "dp_" + re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
@@ -74,24 +100,17 @@ def main():
     conn = db.connect(db_path)
     playlist_key = args.playlist_key or _slugify(args.playlist_name)
 
-    tracks = top_tracks(conn, args.daynr, args.daypart, args.exclude_station, args.top)
+    candidates = top_tracks(conn, args.daynr, args.daypart, args.exclude_station, args.top * LOOKAHEAD)
 
     sp = get_spotify_client()
     budget = quota.SearchBudget(conn)
-    resolver = Resolver(conn, sp, budget, find_track_match, total=len(tracks))
-    log_lines = [f"Kandidaten: {len(tracks)} (daynr={args.daynr or 'alle'}, "
-                 f"daypart={args.daypart or 'alle'}, exclude={args.exclude_station})"]
+    resolver = Resolver(conn, sp, budget, find_track_match, total=len(candidates))
+    log_lines = [f"Kandidaten: {len(candidates)} (daynr={args.daynr or 'alle'}, "
+                 f"daypart={args.daypart or 'alle'}, exclude={args.exclude_station}), "
+                 f"gezocht naar {args.top} nummers met een Spotify-id"]
 
-    notes = {"cached": " (cached)", "reccobeats": "  (via ReccoBeats)",
-             "candidate": "  (ReccoBeats-kandidaat, nog niet door Spotify bevestigd)",
-             "untried": "  (niet geprobeerd: Spotify niet beschikbaar)"}
-    desired_uris = set()
-    for artist, title, plays in tracks:
-        uri, how = resolver.resolve(artist, title)
-        if uri:
-            desired_uris.add(uri)
-        log_lines.append(f"{'OK  ' if uri else 'MISS'}  {plays:3}x  {artist} - {title}" +
-                          (f"  -> {uri}" if uri and how != "cached" else "") + notes.get(how, ""))
+    ordered_uris, scanned = pick_tracks(resolver, candidates, args.top, log_lines)
+    desired_uris = set(ordered_uris)
     budget.finish()
     if not resolver.spotify_available:
         log_lines.append(f"Spotify Search unavailable for the rest of this run "
@@ -118,7 +137,7 @@ def main():
     with open(log_path, "w") as f:
         f.write("\n".join(log_lines) + "\n")
 
-    print(f"Kandidaten: {len(tracks)}, gematcht: {len(desired_uris)} ({resolver.new_lookups} nieuwe lookups: "
+    print(f"Gewenst: {args.top}, gevonden: {len(desired_uris)} (na {scanned} nummers bekeken; {resolver.new_lookups} nieuwe lookups: "
           f"{resolver.spotify_lookups} Spotify, {resolver.reccobeats_lookups} ReccoBeats)")
     if not resolver.spotify_available:
         print(f"Spotify Search unavailable this run — used ReccoBeats where possible; "
