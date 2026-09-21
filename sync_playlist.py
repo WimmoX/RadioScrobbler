@@ -127,7 +127,11 @@ def get_or_create_playlist(sp: spotipy.Spotify, conn, station_slug: str, name: s
     # user_playlist_create() posts to the old /users/{id}/playlists endpoint,
     # which Spotify's Feb 2026 migration blocks for Development Mode apps
     # (always 403). current_user_playlist_create() uses /me/playlists instead.
-    playlist = sp.current_user_playlist_create(name, public=False)
+    playlist = sp.current_user_playlist_create(name, public=True)
+    # New playlists are meant to be public. Spotify doesn't always honour the
+    # flag at creation, so if the response doesn't say public, switch it on.
+    if playlist.get("public") is not True:
+        sp.playlist_change_details(playlist["id"], public=True)
     db.save_playlist_id(conn, station_slug, playlist["id"])
     return playlist["id"]
 

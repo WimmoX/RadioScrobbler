@@ -333,6 +333,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   missers opnieuw (`reccobeats.ALGORITHM_DATE`) en toont hoeveel per lezing.
   27 tests. Volledige run over 2.832 nummers (1.871 nooit geprobeerd + 961
   oude missers, meest gespeeld eerst) gestart.
+- **2026-09-21 (playlists openbaar)**: nieuwe playlists worden openbaar
+  aangemaakt (`public=True`), en als Spotify's antwoord niet "public" zegt
+  wordt dat alsnog aangezet. Opgemerkt: playlists die met `public=False`
+  waren aangemaakt stonden bij Spotify al als openbaar (alle zeven bestaande
+  RadioScrobbler-playlists zijn openbaar; alleen-lezen gecontroleerd), dus de
+  oude vlag werd kennelijk niet gehonoreerd. Eerste playlist via
+  `build_playlist.py`: "RadioScrobbler - Kink Distortion Sunday morning"
+  (`--daynr 7 --daypart 1 --top 90`, zes andere zenders uitgesloten): 88 van
+  de 90 nummers, waarvan 80 door Spotify bevestigd.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
