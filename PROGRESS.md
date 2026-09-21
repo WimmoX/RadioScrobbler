@@ -350,6 +350,11 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   Top 90" (90 nummers, 64 bevestigd, 26 kandidaat; Zeilsteen heeft maar 9
   dagen data) en "RadioScrobbler - Kink Distortion Sunday morning" (`--daynr 7
   --daypart 1`, 90 nummers, alle 90 door Spotify bevestigd). 33 tests.
+- **2026-09-21 (storing ≠ miss)**: de `--retry-misses`-run crashte na ~950
+  nummers op een ReccoBeats-timeout. Gefixt (Les 16): netwerkfouten en 5xx
+  geven `reccobeats.SearchFailed`, worden herhaald en daarna overgeslagen
+  zonder een miss te onthouden; ook voor `match_relisten.py`. Run
+  herstart voor de resterende 2.188 nummers. 37 tests.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

@@ -42,6 +42,7 @@ class Resolver:
         self.allow_fallback = True   # False: Spotify only, never ReccoBeats (see match_tracks.py phases)
         self.spotify_lookups = 0
         self.reccobeats_lookups = 0
+        self.reccobeats_errors = 0
         self.started = time.monotonic()
 
     @property
@@ -90,7 +91,11 @@ class Resolver:
         if db.get_cached_match(self.conn, artist, title, service="reccobeats")[0]:
             return None, "untried"
 
-        match = reccobeats.search_track(artist, title)
+        try:
+            match = reccobeats.search_track(artist, title)
+        except reccobeats.SearchFailed:
+            self.reccobeats_errors += 1        # ReccoBeats didn't answer: not a miss, record nothing
+            return None, "untried"
         self.reccobeats_lookups += 1
         if match is None:
             db.save_match(self.conn, artist, title, None, service="reccobeats")

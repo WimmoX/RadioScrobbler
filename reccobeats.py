@@ -7,6 +7,8 @@ match here doubles as a candidate Spotify URI — but it's unverified until
 Spotify's own Search confirms it (see the `source` column on `tracks` in
 db.py). See RECCOBEATS.md for the API itself.
 """
+import time
+
 import requests
 
 from matching import best_candidate, clean_title, text_variants
@@ -20,16 +22,39 @@ ALGORITHM_DATE = "2026-09-21"
 REQUEST_DELAY = 0.2
 
 
+class SearchFailed(Exception):
+    """ReccoBeats could not answer (timeout, connection error, server error).
+    That is NOT "no match": nothing may be cached about the track, or a
+    passing outage would turn into hundreds of permanent misses."""
+
+
+RETRY_WAITS = (2, 5)   # seconds before the 2nd and 3rd attempt after a network/server failure
+
+
 def _get_with_retry(url: str, params: dict) -> requests.Response | None:
-    """Returns None (not a match) on a non-429 HTTP error instead of raising —
-    a single track ReccoBeats doesn't like (e.g. a rejected query) shouldn't
-    crash a whole backlog batch of hundreds of other, unrelated tracks."""
+    """Returns None (a rejected query = no match) on a 4xx other than 429 —
+    a single track ReccoBeats doesn't like shouldn't crash a whole backlog batch.
+    A timeout, connection error or 5xx is retried a few times and then raises
+    SearchFailed, so callers can skip the track without recording a miss."""
     def attempt():
-        response = requests.get(url, params=params, timeout=15)
+        try:
+            response = requests.get(url, params=params, timeout=15)
+        except requests.RequestException as e:
+            raise SearchFailed(f"{type(e).__name__}: {e}") from e
         if response.status_code == 429:
             raise RateLimited(int(response.headers.get("Retry-After", 1)))
+        if response.status_code >= 500:
+            raise SearchFailed(f"HTTP {response.status_code}")
         return response
-    response = call_with_retry(attempt, delay=REQUEST_DELAY)
+
+    for wait in (*RETRY_WAITS, None):
+        try:
+            response = call_with_retry(attempt, delay=REQUEST_DELAY)
+            break
+        except SearchFailed:
+            if wait is None:
+                raise
+            time.sleep(wait)
     if response.status_code >= 400:
         return None
     return response

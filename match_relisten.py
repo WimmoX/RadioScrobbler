@@ -15,6 +15,7 @@ import argparse
 import os
 import time
 
+import requests
 from dotenv import load_dotenv
 
 import db
@@ -24,6 +25,7 @@ import relisten
 DEFAULT_LIMIT = 500
 PROGRESS_EVERY = 200
 REQUEST_DELAY = 0.5
+MAX_CONSECUTIVE_FAILURES = 10
 
 
 def main():
@@ -39,9 +41,19 @@ def main():
     print(f"{len(songs)} relisten songs to resolve", flush=True)
 
     started = time.monotonic()
-    matched = no_link = 0
+    matched = no_link = failed = consecutive_failures = 0
     for i, (artist, title, song_id) in enumerate(songs, 1):
-        spotify_id = relisten.spotify_id_for(song_id)
+        try:
+            spotify_id = relisten.spotify_id_for(song_id)
+        except requests.RequestException as e:
+            # Not "no link": leave it unresolved so the next run tries again.
+            failed += 1
+            consecutive_failures += 1
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                print(f"relisten.nl does not answer ({type(e).__name__}); stopping after {i} songs.", flush=True)
+                break
+            continue
+        consecutive_failures = 0
         db.save_relisten_spotify_id(conn, artist, title, spotify_id)
         if spotify_id:
             db.save_match(conn, artist, title, f"spotify:track:{spotify_id}",
@@ -56,7 +68,7 @@ def main():
 
     elapsed = int(time.monotonic() - started)
     print(f"Done in {elapsed // 60}m{elapsed % 60:02d}s: {matched} candidate matches stored, "
-          f"{no_link} without a Spotify link on relisten.")
+          f"{no_link} without a Spotify link on relisten" + (f", {failed} not answered (retried next run)." if failed else "."))
 
 
 if __name__ == "__main__":

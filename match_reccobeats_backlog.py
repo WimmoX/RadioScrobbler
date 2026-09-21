@@ -28,6 +28,7 @@ import reccobeats
 
 DEFAULT_LIMIT = 300
 PROGRESS_EVERY = 200
+MAX_CONSECUTIVE_FAILURES = 10
 
 
 def get_unattempted(conn, limit=None, retry_old_misses=False):
@@ -79,12 +80,23 @@ def main():
     matched = 0
     missed = 0
     by_variant = Counter()
+    failed = consecutive_failures = 0
     started = time.monotonic()
     for i, (artist, title) in enumerate(rows, 1):
         if i % PROGRESS_EVERY == 0:
             elapsed = int(time.monotonic() - started)
             print(f"  ...{i}/{len(rows)} ({matched} gematcht), {elapsed // 60}m{elapsed % 60:02d}s", flush=True)
-        match = reccobeats.search_track(artist, title)
+        try:
+            match = reccobeats.search_track(artist, title)
+        except reccobeats.SearchFailed as e:
+            # Not a miss: leave the track untouched so the next run tries it again.
+            failed += 1
+            consecutive_failures += 1
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                print(f"ReccoBeats does not answer ({e}); stopping after {i} tracks.", flush=True)
+                break
+            continue
+        consecutive_failures = 0
         if match:
             db.save_match(conn, artist, title, match["uri"], match["name"],
                           [a["name"] for a in match["artists"]],
@@ -101,7 +113,8 @@ def main():
 
     detail = ", ".join(f"{n}× {label}" for label, n in by_variant.most_common())
     print(f"Klaar: {matched} gematcht via ReccoBeats" + (f" ({detail})" if detail else "") +
-          f", {missed} niet gevonden (onthouden als ReccoBeats-miss; Spotify mag ze later nog steeds proberen).")
+          f", {missed} niet gevonden (onthouden als ReccoBeats-miss; Spotify mag ze later nog steeds proberen)"
+          + (f", {failed} niet beantwoord door ReccoBeats (niets onthouden, volgende run opnieuw)" if failed else "") + ".")
 
 
 if __name__ == "__main__":

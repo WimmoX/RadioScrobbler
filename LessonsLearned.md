@@ -409,3 +409,20 @@ voor die eerste moet Spotify het doen.
 → Bij een matching die niets vindt: meet eerst welke tekstafwijkingen echt
 voorkomen (steekproef van echte missers), bouw dan alleen wat meetbaar
 oplevert, en laat een miss niet permanent zijn als het algoritme verandert.
+
+**Les 16 — Een storing van een externe bron is geen "geen match".** De
+ReccoBeats-run over 2.832 nummers crashte na ~950 nummers op één
+`ReadTimeout` (`requests.exceptions` werd nergens afgevangen: alleen
+HTTP-statuscodes waren afgehandeld, zie het vervolg op Les 11). Erger dan de
+crash was wat er bijna mis ging: een 5xx werd als "geen match" behandeld en
+dus onthouden — een storing van een uur zou honderden nummers blijvend als
+ReccoBeats-miss hebben afgeschreven. Nu: timeout/verbindingsfout/5xx wordt
+twee keer opnieuw geprobeerd (na 2 en 5 s) en geeft daarna `SearchFailed`;
+de aanroeper slaat het nummer over zonder iets te onthouden, en na 10
+mislukkingen achter elkaar stopt het script met een duidelijke melding. Alleen
+een afgewezen zoekopdracht (4xx, bv. een te korte titel) blijft "geen match".
+Hetzelfde voor `match_relisten.py` (een niet-beantwoord verzoek telt niet als
+"geen Spotify-link"). Omdat elk resultaat direct wordt opgeslagen, kon de run
+gewoon opnieuw starten en pakt hij de rest op.
+→ Een cache mag alleen antwoorden onthouden, geen afwezigheid van een
+antwoord: onderscheid "de bron zei nee" van "de bron zei niets".
