@@ -85,15 +85,32 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   ReccoBeats, zonder het Spotify-budget aan te spreken (ReccoBeats heeft
   vooralsnog geen eigen quota getoond). Misses worden bewust niet als
   "definitief geen match" opgeslagen — Spotify mag het later nog proberen.
-- **`match_tracks.py [station ...] [--days N] [--limit N]`** — matcht
-  gespeelde nummers en **doet verder niets**: geen playlists aangemaakt of
-  gewijzigd, alleen de lokale match-tabellen gevuld. Zonder argumenten: alle
-  zenders, alle historie. Gebruikt dezelfde bronvolgorde als
-  `sync_playlist.py` (`resolve.py`: cache → Spotify zolang het budget strekt
-  → ReccoBeats), met een voortgangsregel elke 200 nummers en een korte
-  samenvatting. Bedoeld zodat matchen los staat van playlists bouwen (die
-  ontwerp je later, bv. "Zeilsteen top 100"). Getest met `--limit 5`:
-  5 Spotify-lookups, `playlist_tracks` ongewijzigd.
+- **`match_tracks.py [station ...] [--days N] [--limit N] [--explain N]`** —
+  matcht gespeelde nummers en **doet verder niets**: geen playlists aangemaakt
+  of gewijzigd, alleen de lokale match-tabellen gevuld. Zonder argumenten: alle
+  zenders, alle historie. Volgorde en budget volgen `matching_queue.py` (zie
+  hieronder): meest gespeeld eerst; stap 1 nieuwe nummers via Spotify (max 80%
+  van het Spotify-budget), stap 2 kandidaten verifiëren met de rest, stap 3
+  ReccoBeats voor nummers die nog geen id hebben. Voortgangsregel elke 200
+  nummers. `--explain N` toont alleen de eerste N per stap en waarom (aantal
+  plays, laatst gespeeld, staat), zonder iets te matchen.
+- **`matching_queue.py`** (module) — één gedeelde volgorde voor alles wat
+  matcht (`match_tracks.py`, `sync_playlist.py`, `match_relisten.py`,
+  `match_reccobeats_backlog.py`). **Popularity = aantal keer gespeeld** (+1
+  per play, alle zenders, alle historie, nooit reset). Omdat `plays` nooit
+  wordt opgeschoond en bij het invoegen al ontdubbelt, is het tellen van de
+  rijen de teller: niets om synchroon te houden. Prioriteit = popularity,
+  daarna laatst gespeeld. Verschillende schrijfwijzen van hetzelfde nummer
+  (accenten, `&`/`,`/`Ft.`, versietags tussen haakjes) zijn één wachtrij-item:
+  één keer opgezocht, uitkomst gedeeld (`db.copy_match`). Een nummer dat één
+  keer is gespeeld, langer dan 90 dagen geleden, krijgt geen Spotify-calls
+  meer (filter, geen verwijdering). Staten: `new` (geen Spotify-antwoord),
+  `verify` (alleen een kandidaat-id), `done` (Spotify heeft gesproken).
+- **`quota.py` — buckets:** `search_calls.bucket` markeert waarvoor een call is
+  gebruikt (`new`/`verify`); een bucket met een aandeel (`new`, 80%) stopt met
+  `BucketExhausted` — dat telt bewust *niet* als bewijs over Spotify's echte
+  plafond (geen +25). De `verify`-bucket heeft geen eigen plafond, dus wat
+  `new` niet gebruikt stroomt door.
 - **`scrape.py [station] [--source auto|relisten|onlineradiobox] [--days N]`**
   — haalt afspeelhistorie op en slaat die op in `plays`. Bron per zender:
   standaard relisten.nl voor zenders in `stations.RELISTEN_SLUGS` (Radio 2,
@@ -293,6 +310,18 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   release/compilatie), is niet uitgezocht. Stand: 94.264 plays, 15.897
   unieke nummers, ~11.100 kandidaten wachten op Spotify (≈ 25 dagen bij
   ~460 calls/dag). Er zijn bewust geen playlists aangemaakt.
+- **2026-09-21 (popularity, RS-MATCH-01)**: `matching_queue.py` gebouwd en
+  in gebruik (zie Scripts). Eerste blik op de wachtrij (`--explain`): 14.971
+  nummers na het samenvoegen van schrijfwijzen (was 15.897 unieke teksten,
+  ~6% dubbel), waarvan 2.609 `new`, 10.887 `verify`, 1.475 door Spotify
+  afgehandeld; 122 schrijfwijzen kregen direct het antwoord van een
+  afgehandelde broer/zus (geen API-calls). `new` bevat ook ~700 nummers die
+  ReccoBeats/Relisten niet vonden — precies de nummers die alleen Spotify kan
+  vinden. Eerste echte run (`--limit 40`): 33 Spotify-lookups in stap 1,
+  stap 2 terecht overgeslagen (budget op), 7 via ReccoBeats in stap 3. Er
+  zijn nu tests (`tests/`, `pytest`; 19 stuks: teller, dubbele bronnen,
+  schrijfwijzen, volgorde, verlopen na 90 dagen, buckets, kopiëren van
+  uitkomsten) — begin van RS-DEV-01.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

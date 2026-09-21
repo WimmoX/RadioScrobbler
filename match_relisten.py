@@ -18,6 +18,7 @@ import time
 from dotenv import load_dotenv
 
 import db
+import matching_queue as mq
 import relisten
 
 DEFAULT_LIMIT = 500
@@ -33,7 +34,8 @@ def main():
 
     load_dotenv()
     conn = db.connect(os.environ.get("DB_PATH", "data/radioscrobbler.db"))
-    songs = db.get_unresolved_relisten_songs(conn, args.limit)
+    # Most played first (matching_queue.py); the limit cuts off the least played.
+    songs = mq.sort_by_popularity(conn, db.get_unresolved_relisten_songs(conn), key=lambda s: (s[0], s[1]))[:args.limit]
     print(f"{len(songs)} relisten songs to resolve", flush=True)
 
     started = time.monotonic()

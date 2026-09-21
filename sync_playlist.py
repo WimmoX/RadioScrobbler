@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 
 import db
+import matching_queue as mq
 import quota
 from matching import best_candidate
 from resolve import Resolver
@@ -145,7 +146,7 @@ def main():
     # played_at is stored with minute precision (see LessonsLearned.md, Les 2);
     # round the cutoff the same way so the boundary comparison is apples-to-apples.
     since = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).replace(second=0, microsecond=0)
-    tracks = db.recent_unique_tracks(conn, station_slug, since)
+    tracks = mq.sort_by_popularity(conn, db.recent_unique_tracks(conn, station_slug, since))
     print(f"{len(tracks)} unique tracks played on {station_slug} in the last {LOOKBACK_DAYS} days")
 
     sp = get_spotify_client()

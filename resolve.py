@@ -39,6 +39,7 @@ class Resolver:
         self.budget = budget
         self.progress_every = progress_every
         self.spotify_available = True
+        self.allow_fallback = True   # False: Spotify only, never ReccoBeats (see match_tracks.py phases)
         self.spotify_lookups = 0
         self.reccobeats_lookups = 0
         self.started = time.monotonic()
@@ -84,6 +85,8 @@ class Resolver:
 
         if uri:
             return uri, "candidate"
+        if not self.allow_fallback:
+            return None, "untried"
         if db.get_cached_match(self.conn, artist, title, service="reccobeats")[0]:
             return None, "untried"
 
@@ -98,6 +101,12 @@ class Resolver:
             source="reccobeats", reccobeats_id=match["reccobeats_id"], isrc=match.get("isrc"),
         )
         return match["uri"], "reccobeats"
+
+    def start_phase(self, name: str, total: int) -> None:
+        """Begin a new batch of tracks: progress lines count from zero again."""
+        self.total = total
+        self.processed = 0
+        print(f"{name}: {total} tracks", flush=True)
 
     def _progress(self) -> None:
         if self.progress_every and self.processed % self.progress_every == 0:

@@ -124,7 +124,7 @@ file under `logs/` instead, so this stays cheap to run from anywhere
 |---|---|---|
 | `scrape.py` | Fetches played tracks (relisten.nl or OnlineRadioBox, per station) and stores them | ❌ |
 | `match_relisten.py` | Turns relisten.nl song ids into candidate Spotify matches | ❌ (relisten's redirect instead) |
-| `match_tracks.py` | Matches played tracks to Spotify only — never touches a playlist | ✅ (Search) |
+| `match_tracks.py` | Matches played tracks (most played first) to Spotify only — never touches a playlist | ✅ (Search) |
 | `sync_playlist.py` | Matches tracks, computes the diff, updates the playlist | ✅ |
 | `resync_playlist.py` | Reconciles the local cache with the real playlist contents | ✅ |
 | `fetch_audio_features.py` | Fetches energy/valence/etc. via ReccoBeats | ❌ (ReccoBeats instead) |

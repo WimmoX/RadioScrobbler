@@ -22,13 +22,14 @@ import time
 from dotenv import load_dotenv
 
 import db
+import matching_queue as mq
 import reccobeats
 
 DEFAULT_LIMIT = 300
 PROGRESS_EVERY = 200
 
 
-def get_unattempted(conn, limit):
+def get_unattempted(conn, limit=None):
     return conn.execute("""
         SELECT DISTINCT p.artist, p.title
         FROM plays p
@@ -36,8 +37,7 @@ def get_unattempted(conn, limit):
             ON tm.artist_text = LOWER(p.artist) AND tm.title_text = LOWER(p.title)
             AND tm.service IN ('spotify', 'reccobeats')
         WHERE tm.artist_text IS NULL
-        LIMIT ?
-    """, (limit,)).fetchall()
+    """).fetchall()
 
 
 def main():
@@ -50,7 +50,11 @@ def main():
     db_path = os.environ.get("DB_PATH", "data/radioscrobbler.db")
     conn = db.connect(db_path)
 
-    rows = get_unattempted(conn, args.limit)
+    # Most played first (matching_queue.py). Sorted after the query, over all
+    # never-attempted tracks, so --limit cuts off the least played ones.
+    rows = mq.sort_by_popularity(conn, get_unattempted(conn, None))
+    if args.limit is not None:
+        rows = rows[:args.limit]
     print(f"{len(rows)} nog nooit geprobeerde nummers, matchen via ReccoBeats...")
 
     matched = 0

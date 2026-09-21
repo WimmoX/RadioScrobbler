@@ -145,7 +145,8 @@ CREATE TABLE IF NOT EXISTS relisten_songs (
 -- whatever actually succeeded. search_calls is a plain append-only log used
 -- to count calls in the trailing 24h window.
 CREATE TABLE IF NOT EXISTS search_calls (
-    called_at TEXT NOT NULL
+    called_at TEXT NOT NULL,
+    bucket TEXT
 );
 
 CREATE TABLE IF NOT EXISTS search_quota_state (
@@ -159,6 +160,9 @@ SEARCH_QUOTA_SEED_LIMIT = 300
 
 
 _MIGRATIONS = {
+    "search_calls": {
+        "bucket": "ALTER TABLE search_calls ADD COLUMN bucket TEXT",
+    },
     "plays": {
         "daynr": "ALTER TABLE plays ADD COLUMN daynr INTEGER "
                  "GENERATED ALWAYS AS (CAST(strftime('%u', played_at) AS INTEGER)) VIRTUAL",
@@ -320,18 +324,31 @@ SAME_PLAY_WINDOW = timedelta(minutes=5)
 # "OneRepublic"), while two different songs with the same title inside 5
 # minutes on one station effectively don't happen.
 _BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]")
-_IGNORED_WORDS = {"the", "and"}
+_TITLE_IGNORED = {"the", "and"}
+_ARTIST_IGNORED = {"the", "and", "ft", "feat", "featuring"}
 
 
-def _play_key(title: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", _BRACKETS.sub(" ", title))
+def _words(text: str, ignored: set[str]) -> str:
+    decomposed = unicodedata.normalize("NFKD", text)
     plain = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
-    return " ".join(w for w in re.findall(r"[a-z0-9]+", plain) if w not in _IGNORED_WORDS)
+    return " ".join(w for w in re.findall(r"[a-z0-9]+", plain) if w not in ignored)
+
+
+def title_key(title: str) -> str:
+    """Spelling-independent form of a title: no accents, case, punctuation or
+    bracketed version tags. Falls back to the unstripped title when brackets
+    are all there is ("(Untitled)")."""
+    return _words(_BRACKETS.sub(" ", title), _TITLE_IGNORED) or _words(title, _TITLE_IGNORED)
+
+
+def artist_key(artist: str) -> str:
+    """Spelling-independent form of an artist credit ("Ft."/"&"/","/accents/"The")."""
+    return _words(artist, _ARTIST_IGNORED)
 
 
 def save_plays(conn: sqlite3.Connection, station_slug: str, plays) -> int:
     """Store plays; returns how many were new. A play is skipped if the same
-    station already has a play with the same title (see _play_key) within
+    station already has a play with the same title (see title_key) within
     SAME_PLAY_WINDOW — the existing row wins."""
     plays = list(plays)
     if not plays:
@@ -343,11 +360,11 @@ def save_plays(conn: sqlite3.Connection, station_slug: str, plays) -> int:
         "SELECT artist, title, played_at FROM plays WHERE station_slug = ? AND played_at BETWEEN ? AND ?",
         (station_slug, lo.isoformat(), hi.isoformat()),
     ):
-        seen.setdefault(_play_key(title), []).append(datetime.fromisoformat(played_at))
+        seen.setdefault(title_key(title), []).append(datetime.fromisoformat(played_at))
 
     new_rows = []
     for p in plays:
-        times = seen.setdefault(_play_key(p.title), [])
+        times = seen.setdefault(title_key(p.title), [])
         if any(abs(t - p.played_at) <= SAME_PLAY_WINDOW for t in times):
             continue
         times.append(p.played_at)
@@ -519,6 +536,45 @@ def save_match(
     conn.commit()
 
 
+def copy_match(conn: sqlite3.Connection, artist: str, title: str, targets) -> int:
+    """Share the outcome for (artist, title) with other spellings of the same
+    track (`targets`: iterable of (artist, title)), so a track spelled two ways
+    is looked up once. Returns the number of track_match rows written.
+
+    Per service: a target that is already settled for Spotify (verified, or
+    Spotify said "no match") keeps its own answer; anything else (no row, or
+    only an unconfirmed candidate) takes over the source's. ReccoBeats
+    "no match" rows are copied to targets that have no such row."""
+    written = 0
+    for service in ("spotify", "reccobeats"):
+        row = conn.execute(
+            "SELECT track_id FROM track_match WHERE artist_text = ? AND title_text = ? AND service = ?",
+            (artist.lower(), title.lower(), service),
+        ).fetchone()
+        if row is None:
+            continue
+        for t_artist, t_title in targets:
+            if (t_artist.lower(), t_title.lower()) == (artist.lower(), title.lower()):
+                continue
+            if service == "spotify":
+                settled, _ = get_cached_match(conn, t_artist, t_title, "spotify")
+            else:
+                settled = conn.execute(
+                    "SELECT 1 FROM track_match WHERE artist_text = ? AND title_text = ? AND service = ?",
+                    (t_artist.lower(), t_title.lower(), service),
+                ).fetchone() is not None
+            if settled:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO track_match (artist_text, title_text, service, track_id, matched_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (t_artist.lower(), t_title.lower(), service, row[0], datetime.now().isoformat()),
+            )
+            written += 1
+    conn.commit()
+    return written
+
+
 def get_track_artists(conn: sqlite3.Connection, external_id: str, service: str = "spotify") -> list[str]:
     rows = conn.execute("""
         SELECT a.name FROM track_services ts
@@ -664,14 +720,18 @@ def playlist_keys(conn: sqlite3.Connection) -> list[str]:
     return [row[0] for row in rows]
 
 
-def log_search_call(conn: sqlite3.Connection) -> None:
-    conn.execute("INSERT INTO search_calls (called_at) VALUES (?)", (datetime.now().isoformat(),))
+def log_search_call(conn: sqlite3.Connection, bucket: str | None = None) -> None:
+    conn.execute("INSERT INTO search_calls (called_at, bucket) VALUES (?, ?)", (datetime.now().isoformat(), bucket))
     conn.commit()
 
 
-def search_calls_in_last_24h(conn: sqlite3.Connection) -> int:
+def search_calls_in_last_24h(conn: sqlite3.Connection, bucket: str | None = None) -> int:
     since = (datetime.now() - timedelta(hours=24)).isoformat()
-    return conn.execute("SELECT COUNT(*) FROM search_calls WHERE called_at >= ?", (since,)).fetchone()[0]
+    if bucket is None:
+        return conn.execute("SELECT COUNT(*) FROM search_calls WHERE called_at >= ?", (since,)).fetchone()[0]
+    return conn.execute(
+        "SELECT COUNT(*) FROM search_calls WHERE called_at >= ? AND bucket = ?", (since, bucket),
+    ).fetchone()[0]
 
 
 def get_quota_state(conn: sqlite3.Connection) -> tuple[int, str | None]:
