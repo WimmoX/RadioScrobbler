@@ -1,6 +1,8 @@
 """Local SQLite storage for played tracks and cached Spotify matches."""
 import os
+import re
 import sqlite3
+import unicodedata
 from datetime import datetime, timedelta
 
 AUDIO_FEATURE_COLUMNS = (
@@ -118,6 +120,22 @@ CREATE TABLE IF NOT EXISTS audio_features (
     tempo REAL,
     valence REAL,
     fetched_at TEXT NOT NULL
+);
+
+-- relisten.nl's own song id for a played (artist, title) — see relisten.py.
+-- spotify_id is what relisten's /out redirect says the Spotify track is; NULL
+-- with resolved_at set = relisten has no Spotify link for it (don't ask again).
+-- Only relisten's word for it: match_relisten.py stores it as an unverified
+-- candidate match, never as a confirmed one.
+CREATE TABLE IF NOT EXISTS relisten_songs (
+    artist_text TEXT NOT NULL,
+    title_text TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    title TEXT NOT NULL,
+    song_id TEXT NOT NULL,
+    spotify_id TEXT,
+    resolved_at TEXT,
+    PRIMARY KEY (artist_text, title_text)
 );
 
 -- Self-calibrating budget for Spotify Search calls (see quota.py). We don't
@@ -289,10 +307,86 @@ def connect(db_path: str) -> sqlite3.Connection:
     return conn
 
 
-def save_plays(conn: sqlite3.Connection, station_slug: str, plays) -> None:
+# Two sources report the same play a minute or two apart (relisten.nl is
+# usually 1-2 min ahead of OnlineRadioBox; seen up to 5), so the primary key
+# alone can't dedupe across sources. A play with the same title on the same
+# station this close to an existing one is the same play.
+SAME_PLAY_WINDOW = timedelta(minutes=5)
+
+# The sources also spell the same title differently: accents ("boheme" /
+# "bohème"), punctuation, non-breaking spaces, and version tags in brackets
+# ("Purple Rain (Short Edit)"). Artists are NOT compared: they differ far more
+# ("Adele" / "Adkins, A", "Coolio Ft. L.V." / "Coolio", "One Republic" /
+# "OneRepublic"), while two different songs with the same title inside 5
+# minutes on one station effectively don't happen.
+_BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]")
+_IGNORED_WORDS = {"the", "and"}
+
+
+def _play_key(title: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", _BRACKETS.sub(" ", title))
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    return " ".join(w for w in re.findall(r"[a-z0-9]+", plain) if w not in _IGNORED_WORDS)
+
+
+def save_plays(conn: sqlite3.Connection, station_slug: str, plays) -> int:
+    """Store plays; returns how many were new. A play is skipped if the same
+    station already has a play with the same title (see _play_key) within
+    SAME_PLAY_WINDOW — the existing row wins."""
+    plays = list(plays)
+    if not plays:
+        return 0
+    lo = min(p.played_at for p in plays) - SAME_PLAY_WINDOW
+    hi = max(p.played_at for p in plays) + SAME_PLAY_WINDOW
+    seen: dict[str, list[datetime]] = {}
+    for artist, title, played_at in conn.execute(
+        "SELECT artist, title, played_at FROM plays WHERE station_slug = ? AND played_at BETWEEN ? AND ?",
+        (station_slug, lo.isoformat(), hi.isoformat()),
+    ):
+        seen.setdefault(_play_key(title), []).append(datetime.fromisoformat(played_at))
+
+    new_rows = []
+    for p in plays:
+        times = seen.setdefault(_play_key(p.title), [])
+        if any(abs(t - p.played_at) <= SAME_PLAY_WINDOW for t in times):
+            continue
+        times.append(p.played_at)
+        new_rows.append((station_slug, p.artist, p.title, p.played_at.isoformat()))
     conn.executemany(
-        "INSERT OR IGNORE INTO plays (station_slug, artist, title, played_at) VALUES (?, ?, ?, ?)",
-        [(station_slug, p.artist, p.title, p.played_at.isoformat()) for p in plays],
+        "INSERT OR IGNORE INTO plays (station_slug, artist, title, played_at) VALUES (?, ?, ?, ?)", new_rows,
+    )
+    conn.commit()
+    return len(new_rows)
+
+
+def save_relisten_songs(conn: sqlite3.Connection, plays) -> None:
+    """Remember relisten's song id per (artist, title) for plays that carry one."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO relisten_songs (artist_text, title_text, artist, title, song_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [(p.artist.lower(), p.title.lower(), p.artist, p.title, p.source_id) for p in plays if p.source_id],
+    )
+    conn.commit()
+
+
+def get_unresolved_relisten_songs(conn: sqlite3.Connection, limit: int | None = None) -> list[tuple[str, str, str]]:
+    """(artist, title, song_id) not yet resolved to a Spotify id and never
+    attempted on Spotify — the ones a relisten candidate can help."""
+    sql = """
+        SELECT rs.artist, rs.title, rs.song_id FROM relisten_songs rs
+        LEFT JOIN track_match tm ON tm.artist_text = rs.artist_text AND tm.title_text = rs.title_text
+                                AND tm.service = 'spotify'
+        WHERE rs.resolved_at IS NULL AND tm.artist_text IS NULL
+    """
+    if limit is not None:
+        sql += f" LIMIT {int(limit)}"
+    return [tuple(r) for r in conn.execute(sql).fetchall()]
+
+
+def save_relisten_spotify_id(conn: sqlite3.Connection, artist: str, title: str, spotify_id: str | None) -> None:
+    conn.execute(
+        "UPDATE relisten_songs SET spotify_id = ?, resolved_at = ? WHERE artist_text = ? AND title_text = ?",
+        (spotify_id, datetime.now().isoformat(), artist.lower(), title.lower()),
     )
     conn.commit()
 

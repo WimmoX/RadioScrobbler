@@ -48,11 +48,13 @@ def add_to_config(station_id: str, playlist_name: str) -> None:
     with open(STATIONS_FILE) as f:
         content = f.read()
 
-    if f'"{station_id}"' in content:
+    block_start = content.index("STATIONS = {")
+    block_end = content.index("\n}", block_start) + 1
+    if f'"{station_id}":' in content[block_start:block_end]:
         print(f"'{station_id}' staat al in {STATIONS_FILE}, niks gewijzigd.")
         return
 
-    insert_at = content.rstrip().rindex("}")
+    insert_at = block_end
     new_line = f'    "{station_id}": "{playlist_name}",\n'
     content = content[:insert_at] + new_line + content[insert_at:]
 

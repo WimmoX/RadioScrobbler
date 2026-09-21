@@ -361,3 +361,24 @@ printen nu elke 100 nummers een voortgangsregel (aantal, lookups per bron,
 verstreken tijd), omdat een stille run van 15+ minuten er "bevroren" uitziet.
 → Logica die bepaalt wat je als waar opslaat, hoort op één plek te staan;
 twee kopieën repareer je uiteindelijk één keer te weinig.
+
+**Les 14 — Twee bronnen voor dezelfde afspeelgeschiedenis dedupliceren is
+geen kwestie van dezelfde sleutel.** Relisten.nl als tweede bron naast
+OnlineRadioBox: de PRIMARY KEY van `plays` (zender, artiest, titel,
+tijdstip) leek genoeg, ook met tijdstippen op de minuut (Les 2). Gemeten op
+één Radio 2-dag (272 plays in beide bronnen): slechts 12% viel op dezelfde
+minuut; de rest week 1–3 minuten af (relisten loopt voor). En de tekst
+verschilt: accenten (Tiësto/Tiesto), `&`/`,`/`Ft.`, "Cult, The"/"The Cult",
+onzichtbare spaties, en soms een ander naamgeving ("Adele"/"Adkins, A").
+Stap voor stap verbeterd, telkens gemeten op een kopie van de database:
+tijdvenster van 5 min → 82 dubbelen op ~1.500 plays; tekst genormaliseerd →
+30; vergelijken op de genormaliseerde *titel* alleen (artiest genegeerd,
+haakjes-versies gestript) → 5 (0,4%). Artiest weglaten klinkt riskant maar
+twee verschillende nummers met dezelfde titel binnen 5 minuten op één zender
+komen praktisch niet voor.
+→ Dedupliceren over bronnen heen: meet eerst hoe de bronnen echt van elkaar
+verschillen (tijd én tekst) in plaats van te raden, en kies een sleutel op
+wat wél betrouwbaar overeenkomt.
+Bijkomend: de dagpagina van relisten bevat ook zijbalk-"nieuwe tracks" met
+een andere datum — filter op datum. En: een externe koppeling (relisten →
+Spotify-id) is een *kandidaat*, geen waarheid; ~7% fout in een steekproef.

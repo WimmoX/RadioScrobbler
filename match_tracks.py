@@ -29,11 +29,14 @@ from sync_playlist import find_track_match, get_spotify_client
 
 def get_tracks(conn, stations, days):
     marks = ",".join("?" * len(stations))
-    sql = f"SELECT DISTINCT artist, title FROM plays WHERE station_slug IN ({marks})"
+    # Most played first: Spotify's budget is small (see quota.py), so it goes
+    # to the tracks that weigh most in a "top N" playlist.
+    sql = f"SELECT artist, title FROM plays WHERE station_slug IN ({marks})"
     params = list(stations)
     if days:
         sql += " AND played_at >= datetime('now', 'localtime', ?)"
         params.append(f"-{days} days")
+    sql += " GROUP BY LOWER(artist), LOWER(title) ORDER BY COUNT(*) DESC"
     return conn.execute(sql, params).fetchall()
 
 

@@ -26,6 +26,8 @@ class Play:
     artist: str
     title: str
     played_at: datetime
+    # The source's own id for this song, if it has one (relisten.py does).
+    source_id: str | None = None
 
 
 def _split_station(station: str) -> tuple[str, str]:

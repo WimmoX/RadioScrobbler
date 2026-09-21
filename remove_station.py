@@ -23,7 +23,8 @@ def remove_from_config(station: str) -> bool:
         content = f.read()
 
     pattern = rf'^\s*"{re.escape(station)}":\s*".*?",\n'
-    new_content = re.sub(pattern, "", content, count=1, flags=re.MULTILINE)
+    # Every line keyed on this station id: STATIONS and (if present) RELISTEN_SLUGS.
+    new_content = re.sub(pattern, "", content, flags=re.MULTILINE)
 
     if new_content == content:
         return False

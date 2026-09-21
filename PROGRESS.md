@@ -35,6 +35,7 @@ Bekende zenders (`stations.py`):
 | Zeilsteen Radio | `zeilsteen` |
 | SLAM! Non Stop | `slamnonst` |
 | NPO Radio 2 | `radio2` |
+| NPO 3FM | `npo3fm` (alleen via relisten.nl) |
 
 OnlineRadioBox groepeert zenders per land in de URL (`/nl/...`, `/uk/...`,
 etc.). Een station-ID is dus óf een kale slug (dan gaan we uit van `nl`), óf
@@ -93,9 +94,20 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   samenvatting. Bedoeld zodat matchen los staat van playlists bouwen (die
   ontwerp je later, bv. "Zeilsteen top 100"). Getest met `--limit 5`:
   5 Spotify-lookups, `playlist_tracks` ongewijzigd.
-- **`scrape.py [station]`** — haalt de laatste 7 dagen op van OnlineRadioBox en
-  slaat ze op in `plays`. Geen Spotify-calls, dus altijd veilig om te draaien.
-  Draai dit regelmatig (dagelijks) om historie op te bouwen.
+- **`scrape.py [station] [--source auto|relisten|onlineradiobox] [--days N]`**
+  — haalt afspeelhistorie op en slaat die op in `plays`. Bron per zender:
+  standaard relisten.nl voor zenders in `stations.RELISTEN_SLUGS` (Radio 2,
+  KINK Distortion, NPO 3FM — jaren historie, dus `--days 90` werkt), anders
+  OnlineRadioBox (max 7 dagen). Geen Spotify-calls, altijd veilig om te
+  draaien; plays die beide bronnen zien worden één keer opgeslagen (zie
+  `db.save_plays`). Draai dit regelmatig (dagelijks): voor de OnlineRadioBox-
+  zenders (Pinguin Classics, KINK Classics, Zeilsteen, SLAM! Non Stop) is er
+  geen andere bron, dus een gat langer dan 7 dagen is niet meer te vullen.
+- **`relisten.py`** (module) — `get_plays()` (dagpagina's, minuut-afgerond) en
+  `spotify_id_for()` (relisten's `out`-redirect naar een Spotify-track-id).
+- **`match_relisten.py [--limit N]`** — zet relisten-song-id's om in
+  **kandidaat**-matches (`verified=0`, `source='relisten'`), zonder Spotify-
+  quota; alleen nummers die Spotify nog nooit heeft gezien. ~0,6 s per nummer.
 - **`sync_playlist.py [station]`** — leest de laatste 14 dagen uit de
   database, matcht alleen *nieuwe* artiest/titel-combinaties via Spotify
   Search (rest komt uit cache), berekent lokaal het verschil met wat er al in
@@ -263,6 +275,24 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   het laagst — nog niet onderzocht of dat aan ReccoBeats' dekking van
   minder bekende nummers ligt of aan hoe de titels/artiesten in de bron
   staan.
+- **2026-09-21**: relisten.nl als tweede bron (issue #1, doel 2 en 3) en
+  **NPO 3FM** toegevoegd (`npo3fm`, alleen via relisten; OnlineRadioBox heeft
+  geen data). 90 dagen historie geladen: NPO 3FM 28.091 plays, Radio 2
+  24.062, KINK Distortion 24.177 (elk in ~2 min, 90 verzoeken). Voor
+  Pinguin Classics, KINK Classics, Zeilsteen en SLAM! Non Stop bestaat geen
+  diepere bron: alleen de laatste 7 dagen van OnlineRadioBox bijgeladen;
+  KINK Classics mist 9–14 sept, Pinguin Classics en de rest hebben ook
+  gaten (er is sinds 8/19 sept niet gescrapet). Zie Les 14 voor het
+  dubbele-plays-probleem tussen bronnen. Daarna `match_relisten.py`: 8.817
+  nummers in 87 min, 7.826 kandidaat-matches (89%), 991 zonder link. Met het
+  vrije Spotify-budget (313 Search-calls, meest gespeelde eerst — nieuwe
+  volgorde in `match_tracks.py`) 301 kandidaten bevestigd: 1.050 → 1.351
+  Spotify-bevestigd; limiet 435 → 460. Bij 97 kandidaten koos Spotify's
+  Search een *ander* Spotify-nummer dan de kandidaat (59 ReccoBeats, 38
+  relisten) — dat hoeft niet fout te zijn (zelfde opname op een andere
+  release/compilatie), is niet uitgezocht. Stand: 94.264 plays, 15.897
+  unieke nummers, ~11.100 kandidaten wachten op Spotify (≈ 25 dagen bij
+  ~460 calls/dag). Er zijn bewust geen playlists aangemaakt.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

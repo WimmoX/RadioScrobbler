@@ -169,6 +169,33 @@ project:
 1. `fetch_audio_features.py` — energy/valence/danceability/etc.
 2. `reccobeats.py` — fallback-zoekfunctie als Spotify's Search geblokkeerd is.
 
+### Relisten.nl — afspeelhistorie per zender (jaren) + Spotify-links
+```
+https://www.relisten.nl/playlists/{slug}/{dd-mm-yyyy}.html      # hele dag op één pagina
+https://www.relisten.nl/out?songID={id}&option=spotify          # 302 -> open.spotify.com/track/{id}
+```
+- **Historie:** dagpagina's bestaan minstens tot sept 2015 (Radio 2) en
+  sept 2012 (NPO 3FM); ~140–350 plays per dag, tijdstip tot op de seconde.
+  Geen login; `robots.txt` blokkeert alleen `/logs/`. Voorwaarden niet
+  gecontroleerd — het is een door advertenties gefinancierde site, dus
+  rustig scrapen (1 s tussen dagen, 0,5 s tussen `out`-verzoeken).
+- **Zenders die wij gebruiken/wilden:** `radio2`, `kink-distortion`, `3fm`
+  (OnlineRadioBox heeft geen 3FM). Niet dezelfde zender: "SLAM!" /
+  "SLAM! Hardstyle" (wij: Non Stop), "Pinguin Radio" (wij: Classics). Niet
+  aanwezig: KINK Classics, Zeilsteen.
+- **Valkuil:** de dagpagina toont ook "nieuwe tracks" uit een zijbalk met een
+  andere datum — filteren op datum (zie `relisten.parse_day()`).
+- **Spotify-id via `out`:** geen Spotify-API, dus geen quota. Alleen
+  relisten's eigen koppeling: ~93% correct in een steekproef (Radio 2: 28
+  goed / 2 fout / 10 niet te controleren; 3FM: 12 / 1 / 24), ~11% van de
+  nummers heeft geen link. Daarom opgeslagen als **kandidaat**
+  (`verified = 0`), nooit als bevestigd. `option=itunes` geeft Apple
+  Music-links (relevant voor issue #2) maar één geteste link was duidelijk fout.
+- **Tijdstippen wijken af van OnlineRadioBox:** relisten loopt meestal 1–2
+  min voor (gemeten op Radio 2: +1 min in 66% van de gevallen, tot +5), en
+  namen worden anders geschreven (accenten, `&` / `,` / `Ft.`,
+  "Cult, The", "Adele" tegenover "Adkins, A"). Zie `db.save_plays()`.
+
 ### MusicBrainz — onderzocht, niet gebruikt
 Publieke, gratis muziekdatabase (`https://musicbrainz.org/ws/2/...`, geen
 auth nodig, wel een etiquette-richtlijn van ~1 request/seconde). Zoeken op
