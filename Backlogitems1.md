@@ -398,7 +398,7 @@ reason in a UI, and ReccoBeats-only stations of the queue in scheduled jobs (RS-
 algoritme verbeteren"): 843 misses, samples of 40 and 60 reviewed, four causes
 (generic titles beyond ReccoBeats' 200-result search, artist and title swapped in
 the source, mangled punctuation, junk/obscure repertoire). What remains is to write
-the finding in LessonsLearned.md; the fixes are tracked in #4. No separate ticket.
+the finding in LessonsLearned.md (done: Les 15, together with the first fixes: swapped/cleaned/re-joined readings, +11.5% on real misses); the remaining fixes are tracked in #4. No separate ticket.
 
 ### RS-OPS-03 — Add a runs table with metrics  [OK]
 **Description:** There is no persistent record of how long runs take or how well they perform, which makes "is it getting better?" a matter of feel.

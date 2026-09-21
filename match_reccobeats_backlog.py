@@ -18,6 +18,7 @@ Usage: python match_reccobeats_backlog.py [--limit N]
 import argparse
 import os
 import time
+from collections import Counter
 
 from dotenv import load_dotenv
 
@@ -29,8 +30,11 @@ DEFAULT_LIMIT = 300
 PROGRESS_EVERY = 200
 
 
-def get_unattempted(conn, limit=None):
-    return conn.execute("""
+def get_unattempted(conn, limit=None, retry_old_misses=False):
+    """Tracks with no Spotify and no ReccoBeats answer yet. With `retry_old_misses`
+    also tracks that only have a ReccoBeats miss recorded before
+    reccobeats.ALGORITHM_DATE (Spotify has never seen them either)."""
+    rows = conn.execute("""
         SELECT DISTINCT p.artist, p.title
         FROM plays p
         LEFT JOIN track_match tm
@@ -38,12 +42,27 @@ def get_unattempted(conn, limit=None):
             AND tm.service IN ('spotify', 'reccobeats')
         WHERE tm.artist_text IS NULL
     """).fetchall()
+    if retry_old_misses:
+        rows += conn.execute("""
+            SELECT DISTINCT p.artist, p.title
+            FROM plays p
+            JOIN track_match rb
+                ON rb.artist_text = LOWER(p.artist) AND rb.title_text = LOWER(p.title)
+                AND rb.service = 'reccobeats' AND rb.track_id IS NULL AND rb.matched_at < ?
+            LEFT JOIN track_match sp
+                ON sp.artist_text = rb.artist_text AND sp.title_text = rb.title_text AND sp.service = 'spotify'
+            WHERE sp.artist_text IS NULL
+        """, (reccobeats.ALGORITHM_DATE,)).fetchall()
+    return rows[:limit] if limit else rows
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
                          help=f"Max aantal nog nooit geprobeerde nummers deze run (default {DEFAULT_LIMIT})")
+    parser.add_argument("--retry-misses", action="store_true",
+                        help="Also retry ReccoBeats misses recorded before the improved search "
+                             f"(reccobeats.ALGORITHM_DATE = {reccobeats.ALGORITHM_DATE})")
     args = parser.parse_args()
 
     load_dotenv()
@@ -52,13 +71,14 @@ def main():
 
     # Most played first (matching_queue.py). Sorted after the query, over all
     # never-attempted tracks, so --limit cuts off the least played ones.
-    rows = mq.sort_by_popularity(conn, get_unattempted(conn, None))
+    rows = mq.sort_by_popularity(conn, get_unattempted(conn, None, args.retry_misses))
     if args.limit is not None:
         rows = rows[:args.limit]
     print(f"{len(rows)} nog nooit geprobeerde nummers, matchen via ReccoBeats...")
 
     matched = 0
     missed = 0
+    by_variant = Counter()
     started = time.monotonic()
     for i, (artist, title) in enumerate(rows, 1):
         if i % PROGRESS_EVERY == 0:
@@ -71,6 +91,7 @@ def main():
                           source="reccobeats", reccobeats_id=match["reccobeats_id"],
                           isrc=match["isrc"])
             matched += 1
+            by_variant[match.get("variant", "as-is")] += 1
         else:
             # Onthouden als ReccoBeats-miss (service='reccobeats'): voorkomt dat
             # dit script 'm elke run opnieuw vraagt, en zegt niets over Spotify,
@@ -78,8 +99,9 @@ def main():
             db.save_match(conn, artist, title, None, service="reccobeats")
             missed += 1
 
-    print(f"Klaar: {matched} gematcht via ReccoBeats, {missed} niet gevonden "
-          f"(onthouden als ReccoBeats-miss; Spotify mag ze later nog steeds proberen).")
+    detail = ", ".join(f"{n}× {label}" for label, n in by_variant.most_common())
+    print(f"Klaar: {matched} gematcht via ReccoBeats" + (f" ({detail})" if detail else "") +
+          f", {missed} niet gevonden (onthouden als ReccoBeats-miss; Spotify mag ze later nog steeds proberen).")
 
 
 if __name__ == "__main__":

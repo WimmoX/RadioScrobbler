@@ -102,3 +102,62 @@ def best_candidate(items: list, artist: str, title: str) -> dict | None:
     if _title_similarity(best["name"], title) < MIN_TITLE_SIMILARITY:
         return None
     return best
+
+
+# --- Readings of a scraped "artist - title" pair ------------------------------
+# Radio sources garble the text: artist and title swapped ("War Of The Worlds |
+# My Vitriol"), apostrophes turned into spaces ("They re On To Me"), version
+# tags ("(albumversie)", "- Radio Edit"), a hyphenated artist split in two
+# ("Hard | Fi - Living For The Weekend"). ReccoBeats' search is a literal
+# phrase match on the title, so the query has to be clean AND the right way
+# round; Spotify's is fuzzy but best_candidate() still checks the artist.
+
+_CONTRACTION = re.compile(r"\b([A-Za-z]+) (s|re|t|ll|ve|d|m)\b", re.IGNORECASE)
+_BRACKETED = re.compile(r"\s*[\(\[][^)\]]*[\)\]]")
+# Only tails that are clearly a version tag: a plain " - x" can also be the
+# real title after a hyphenated artist was split ("Hard - Fi - Living For...").
+_VERSION_TAIL = re.compile(
+    r"\s+-\s+.*\b(edit|remaster(ed)?|version|mix|remix|live|mono|stereo|single|extended|"
+    r"acoustic|instrumental|demo|reprise|\d{4})\b.*$", re.IGNORECASE)
+_HYPHEN_SPLIT = re.compile(r"^(.{1,15}?) - (.+)$")
+
+
+def fix_contractions(text: str) -> str:
+    """'They re On To Me' -> "They're On To Me", 'k s Choise' -> "k's Choise"."""
+    return _CONTRACTION.sub(r"\1'\2", text)
+
+
+def clean_title(text: str) -> str:
+    """Drop bracketed parts and ' - Radio Edit' / ' - Remastered 2011' style tails, fix contractions;
+    falls back to the input when nothing would be left."""
+    cleaned = _VERSION_TAIL.sub("", _BRACKETED.sub("", fix_contractions(text))).strip()
+    return cleaned or text
+
+
+def text_variants(artist: str, title: str) -> list[tuple[str, str, str]]:
+    """(artist, title, label) readings of a scraped pair, most likely first,
+    without duplicates. The first one is always the text as scraped."""
+    variants = [(artist, title, "as-is")]
+    cleaned = (fix_contractions(artist), clean_title(title), "cleaned")
+    if cleaned[:2] != (artist, title):
+        variants.append(cleaned)
+    m = _HYPHEN_SPLIT.match(title)
+    if m:
+        variants.append((f"{artist}-{m.group(1)}", clean_title(m.group(2)), "resplit"))
+    variants.append((fix_contractions(title), clean_title(artist), "swapped"))
+    seen, unique = set(), []
+    for v in variants:
+        if v[:2] not in seen:
+            seen.add(v[:2])
+            unique.append(v)
+    return unique
+
+
+def best_candidate_variants(items: list, artist: str, title: str) -> tuple[dict | None, str | None]:
+    """best_candidate() over every reading of the pair, on the SAME search
+    results — no extra API calls. Returns (item, label) or (None, None)."""
+    for v_artist, v_title, label in text_variants(artist, title):
+        best = best_candidate(items, v_artist, v_title)
+        if best:
+            return best, label
+    return None, None

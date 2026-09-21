@@ -322,6 +322,17 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   zijn nu tests (`tests/`, `pytest`; 19 stuks: teller, dubbele bronnen,
   schrijfwijzen, volgorde, verlopen na 90 dagen, buckets, kopiëren van
   uitkomsten) — begin van RS-DEV-01.
+- **2026-09-21 (ticket #4, matching verbeteren)**: `matching.text_variants()`
+  probeert per nummer meerdere lezingen van de gescrapete tekst (opgeschoond,
+  uit elkaar gevallen artiest samengevoegd, artiest/titel omgedraaid).
+  ReccoBeats probeert ze na een miss (1 call per lezing); Spotify probeert ze
+  gratis op dezelfde zoekresultaten en doet alleen bij een miss één extra
+  call (de gewone query). Gemeten op 200 echte ReccoBeats-missers: 23
+  (11,5%) teruggevonden (16 omgedraaid, 6 opgeschoond, 1 samengevoegd) —
+  zie Les 15. `match_reccobeats_backlog.py --retry-misses` probeert oudere
+  missers opnieuw (`reccobeats.ALGORITHM_DATE`) en toont hoeveel per lezing.
+  27 tests. Volledige run over 2.832 nummers (1.871 nooit geprobeerd + 961
+  oude missers, meest gespeeld eerst) gestart.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een

@@ -382,3 +382,30 @@ wat wél betrouwbaar overeenkomt.
 Bijkomend: de dagpagina van relisten bevat ook zijbalk-"nieuwe tracks" met
 een andere datum — filter op datum. En: een externe koppeling (relisten →
 Spotify-id) is een *kandidaat*, geen waarheid; ~7% fout in een steekproef.
+
+**Les 15 — Gegarbelde brontekst: meet per aanpak wat het oplevert, en
+hergebruik zoekresultaten die je al hebt.** Ticket #4 (Zeilsteen matcht maar
+50%): de missers bleken vooral tekstproblemen. Getest op 200 willekeurige
+échte ReccoBeats-missers (van 903 waar Spotify nog niets over gezegd had),
+elke aanpak los gemeten: **23 van 200 (11,5%) teruggevonden** — artiest en
+titel omdraaien 16 (8%), titel opschonen (versietags "(albumversie)",
+"- Radio Edit", "They re" → "They're") 6 (3%), een uit elkaar gevallen
+artiest weer samenvoegen ("Hard" + "Fi - Living…" → "Hard-Fi") 1. Niet
+opgelost: generieke titels ("Peace", "Girl": ReccoBeats' 200-resultaten-limiet)
+en slug-achtige tekst ("Gallagher s-High-Flying-Birds- -The-Dying-Of-…") —
+voor die eerste moet Spotify het doen.
+- Eerst de opschoonregel te ruim gemaakt: " - iets" achter een titel weghalen
+  sloeg ook "Fi - Living For The Weekend" plat tot "Fi". Nu alleen echte
+  versietags (edit/remaster/version/mix/live/…/jaartal).
+- Voor Spotify kosten de andere lezingen niets extra: `best_candidate` draait
+  lokaal, dus alle lezingen worden op dezelfde zoekresultaten geprobeerd. Alleen
+  als dat niets oplevert volgt één extra call (de gewone zoekopdracht, die ook
+  een omgedraaid paar aankan).
+- ReccoBeats geeft bij snel achter elkaar zoeken korte 429's ("rate limited,
+  waiting 1–4s"): geen dagquota (zover bekend), wel een burst-limiet die de
+  bestaande retry opvangt.
+- Een miss is bij een verbeterd algoritme niet meer definitief: missers van
+  vóór `reccobeats.ALGORITHM_DATE` kunnen opnieuw (`--retry-misses`).
+→ Bij een matching die niets vindt: meet eerst welke tekstafwijkingen echt
+voorkomen (steekproef van echte missers), bouw dan alleen wat meetbaar
+oplevert, en laat een miss niet permanent zijn als het algoritme verandert.

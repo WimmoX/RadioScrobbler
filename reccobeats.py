@@ -9,10 +9,14 @@ db.py). See RECCOBEATS.md for the API itself.
 """
 import requests
 
-from matching import best_candidate
+from matching import best_candidate, clean_title, text_variants
 from retry import RateLimited, call_with_retry
 
 SEARCH_URL = "https://api.reccobeats.com/v1/track/search"
+# Misses recorded before this date came from the plain title-only search;
+# search_track() has tried the other readings of the text since (matching.text_variants),
+# so those misses are worth one more try (match_reccobeats_backlog.py --retry-misses).
+ALGORITHM_DATE = "2026-09-21"
 REQUEST_DELAY = 0.2
 
 
@@ -31,27 +35,10 @@ def _get_with_retry(url: str, params: dict) -> requests.Response | None:
     return response
 
 
-def search_track(artist: str, title: str) -> dict | None:
-    """Returns {"uri", "name", "artists", "reccobeats_id", "isrc"} for the best match, or None.
-
-    Unlike Spotify, ReccoBeats' searchText looks like a fairly literal phrase
-    match rather than fuzzy full-text: combining "{artist} {title}" into one
-    string very often returns zero results even when the track exists,
-    because that exact phrase doesn't appear anywhere. A title-only query
-    finds it reliably instead — Blind Guardian's "Bright Eyes" showed up at
-    position 9 of 200 total results for just "Bright Eyes" — so we search on
-    title alone (with a larger page to raise the odds of the right artist
-    being on it) and let best_candidate() pick the right artist out of the
-    results, same as we already do for Spotify's own search.
-
-    ReccoBeats also rejects searchText shorter than 3 characters (400,
-    "size must be between 3 and 1000") — real short titles do exist (e.g.
-    Doe Maar's "Pa"), so we just skip the call and report no match instead
-    of erroring."""
-    if len(title) < 3:
-        return None
-
-    response = _get_with_retry(SEARCH_URL, {"searchText": title, "size": 50})
+def _search(query: str, artist: str, title: str) -> dict | None:
+    """One ReccoBeats search call for `query` (title-only, see search_track),
+    best match for (artist, title) or None."""
+    response = _get_with_retry(SEARCH_URL, {"searchText": query, "size": 50})
     if response is None:
         return None
     items = response.json().get("content", [])
@@ -81,3 +68,39 @@ def search_track(artist: str, title: str) -> dict | None:
         "reccobeats_id": best["_reccobeats_id"],
         "isrc": best["_isrc"],
     }
+
+
+def search_track(artist: str, title: str) -> dict | None:
+    """Returns {"uri", "name", "artists", "reccobeats_id", "isrc", "variant"}
+    for the best match, or None.
+
+    Unlike Spotify, ReccoBeats' searchText looks like a fairly literal phrase
+    match rather than fuzzy full-text: combining "{artist} {title}" into one
+    string very often returns zero results even when the track exists,
+    because that exact phrase doesn't appear anywhere. A title-only query
+    finds it reliably instead — Blind Guardian's "Bright Eyes" showed up at
+    position 9 of 200 total results for just "Bright Eyes" — so we search on
+    title alone (with a larger page to raise the odds of the right artist
+    being on it) and let best_candidate() pick the right artist out of the
+    results, same as we already do for Spotify's own search.
+
+    The scraped text is often garbled, so when the text as scraped finds
+    nothing we also try the other readings of it (matching.text_variants():
+    cleaned of version tags and broken apostrophes, a hyphenated artist
+    re-joined, artist and title swapped) — one more call each, only for tracks
+    that would otherwise be a miss. `variant` says which reading matched.
+
+    ReccoBeats also rejects searchText shorter than 3 characters (400,
+    "size must be between 3 and 1000") — real short titles do exist (e.g.
+    Doe Maar's "Pa"), so we just skip that query instead of erroring."""
+    tried = set()
+    for v_artist, v_title, label in text_variants(artist, title):
+        query = clean_title(v_title)
+        if len(query) < 3 or query.lower() in tried:
+            continue
+        tried.add(query.lower())
+        match = _search(query, v_artist, v_title)
+        if match:
+            match["variant"] = label
+            return match
+    return None

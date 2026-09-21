@@ -14,7 +14,7 @@ from spotipy.oauth2 import SpotifyOAuth
 import db
 import matching_queue as mq
 import quota
-from matching import best_candidate
+from matching import best_candidate_variants
 from resolve import Resolver
 from retry import RateLimited, call_with_retry
 from stations import STATIONS
@@ -88,10 +88,18 @@ def find_track_match(sp: spotipy.Spotify, artist: str, title: str, budget: quota
         budget.record_call()
         return results["tracks"]["items"]
 
+    # Structured query first. The scraped text is often garbled (artist and
+    # title swapped, broken apostrophes, ...), so every reading of it is tried
+    # on the results we already have (matching.text_variants — free). Only if
+    # that finds nothing do we spend one more call on the plain query, whose
+    # fuzzier matching also copes with a swapped pair.
     items = do_search(f"artist:{artist} track:{title}")
-    if not items:
-        items = do_search(f"{artist} {title}")
-    return best_candidate(items, artist, title)
+    best, _ = best_candidate_variants(items, artist, title)
+    if best:
+        return best
+    plain = do_search(f"{artist} {title}")
+    best, _ = best_candidate_variants(items + plain, artist, title)
+    return best
 
 
 def filter_liked(sp: spotipy.Spotify, uris: list[str]) -> set[str]:
