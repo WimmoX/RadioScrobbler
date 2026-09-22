@@ -355,6 +355,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   geven `reccobeats.SearchFailed`, worden herhaald en daarna overgeslagen
   zonder een miss te onthouden; ook voor `match_relisten.py`. Run
   herstart voor de resterende 2.188 nummers. 37 tests.
+- **2026-09-21 (avond, uitkomst `--retry-misses`)**: de herstarte run (2.188
+  nummers, meest gespeeld eerst, 1u45) vond **593** kandidaat-matches: 519 met
+  de tekst zoals gescrapet (vooral nooit geprobeerde nummers), **71 door
+  artiest/titel om te draaien**, 3 door een samengevoegde artiest; 1.593
+  onthouden als ReccoBeats-miss, 2 niet beantwoord (volgende run opnieuw).
+  (De uitsplitsing geldt alleen voor deze run; de eerste, ~950 nummers, crashte
+  vóór de samenvatting, zie Les 16.) Wachtrij daarna: 1.910 `new` (was 2.609),
+  11.459 `verify`, 1.602 door Spotify afgehandeld; 1.459 Spotify-bevestigd,
+  11.777 kandidaten.
 - **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
