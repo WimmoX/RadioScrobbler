@@ -34,11 +34,11 @@ naslag-versie daarvan.
 - **Empirisch datapunt voor het dagbudget**: bij één incident lukten nog
   ~400 nieuwe Search-matches voordat de quota dichtklapte (ergens tussen de
   400-800 daadwerkelijke HTTP-calls, want een deel van die matches kostte 2
-  calls — zie "Search-strategie" hieronder). We houden nu zelf een
-  conservatieve, **zelf-calibrerende** limiet aan — zie `quota.py`: start op
-  300 calls/rollend-24u, +25 bij een run die de limiet succesvol opzoekt
-  zonder blokkade, terug-snappen naar het werkelijke aantal bij een échte
-  blokkade.
+  calls — zie "Search-strategie" hieronder). Tweede datapunt (2026-09-24):
+  `QUOTA_EXCEEDED` bij ~700 calls in 24 uur. Sindsdien een **vaste** limiet
+  van **650 calls per rollende 24u** (`quota.CALL_LIMIT`), die niet meer
+  vanzelf omhoog of omlaag gaat. (Daarvoor: zelf-calibrerend, start 300,
+  +25 per run die de limiet opmaakte — zie Les 10.)
 - **Quota-buckets**: verschillende soorten endpoints lijken een apart
   budget te hebben. Empirisch bevestigd: tijdens een actieve Search-quota-
   blokkade werkten playlists lezen/toevoegen/verwijderen gewoon door. Ga er
@@ -59,7 +59,7 @@ naslag-versie daarvan.
 | `POST /playlists/{id}/tracks` (toevoegen) | ✅ | |
 | `DELETE /playlists/{id}/tracks` (verwijderen) | ✅ | |
 | `PUT /playlists/{id}/tracks` (vervangen) | ✅ | |
-| `GET /me/tracks/contains` (Liked Songs check) | ✅ | Vereist scope `user-library-read`. |
+| `GET /me/library/contains` (Liked Songs check) | ✅ | Vereist scope `user-library-read`. **Max 40 URI's per call** — 41+ geeft `400 Too many uris requested` (gemeten 2026-09-24; spotipy's `current_user_saved_tracks_contains` gebruikt dit endpoint). |
 | `popularity`-veld op tracks | ❌ **verwijderd** | Sinds februari 2026 niet meer aanwezig in track-responses voor Dev Mode (samen met `available_markets`, `followers`, en user-velden `country`/`email`/`product`). Gebruik ReccoBeats' `/v1/track`/`/v1/track/search` als je toch een populariteitsscore wil — die geeft 'm wél. |
 | Audio Features endpoint | ❌ **ingeperkt** | Sinds november 2024 achter een goedkeuringsmuur voor de meeste Dev Mode-apps. Gebruik ReccoBeats' `/v1/audio-features` als vervanger — zie `RECCOBEATS.md`. |
 
@@ -127,8 +127,9 @@ juist wél bevat). Gebruik een niet-lege, onmogelijke waarde zoals `[999]`.
 1. **Cache elke match lokaal, zoek nooit twee keer hetzelfde op** (zie
    `track_match`/`tracks` in `db.py`). Dit is de eigenlijke oplossing tegen
    quota-problemen, niet "trager gaan".
-2. **Zelf-calibrerend budget i.p.v. een geraden vast getal** — zie
-   `quota.py`. Spotify publiceert de limiet niet en kan 'm wijzigen.
+2. **Vast budget net onder het gemeten plafond** — zie `quota.py` (650/24u).
+   Spotify publiceert de limiet niet en kan 'm wijzigen; een echte blokkade
+   stopt alle Search-calls tot `Retry-After`.
 3. **Bij Search-uitval overschakelen op ReccoBeats** (zie `reccobeats.py`)
    i.p.v. de hele run stoppen — playlist-acties blijven namelijk gewoon
    werken tijdens een Search-blokkade (aparte quota-bucket).

@@ -9,9 +9,11 @@ reclame.
 - **MVP**: playlist bijgewerkt met nummers van de afgelopen periode voor één
   zender (Pinguin Classics).
 - **Level 1**: nummers die niet meer gedraaid worden, vallen er ook weer af.
-- **Level 2** *(nog niet gebouwd)*: aparte playlists per dagdeel (bv.
+- **Level 2** *(deels gebouwd)*: playlists per dagdeel (bv.
   weekdag-dag/avond, vrijdag-middag/avond, zaterdag-ochtend/avond,
-  zondag-ochtend/middag/avond).
+  zondag-ochtend/middag/avond). Kan met `build_playlist.py --daynr/--daypart`;
+  opgeslagen playlist-definities en instelbare dagdelen nog niet (RS-PLAY-01,
+  RS-UI-16).
 - **Einddoel** *(nog niet gebouwd)*: Docker-container met minimale UI om
   zender + muziekdienst te kiezen.
 
@@ -68,9 +70,9 @@ Tabellen:
 De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify-URI's, `service="spotify"` als default) en vertalen intern naar `track_id` — zo blijven `sync_playlist.py`, `build_playlist.py` enz. vrijwel ongewijzigd. Een onbekend id geeft een `KeyError`. Bewust nog **niet** opgelost: dezelfde opname op twee diensten aan één `track` koppelen (dat gaat via ISRC, en hoort bij het bouwen van de eerste tweede integratie — dit ticket bereidt alleen voor).
 
 ### Scripts
-- **`quota.py`** (geen los script, een module) — `SearchBudget`: zelf-
-  calibrerend budget voor Spotify Search-calls, zie Les 10 in
-  `LessonsLearned.md`. Gebruikt door `sync_playlist.py`/`build_playlist.py`
+- **`quota.py`** (geen los script, een module) — `SearchBudget`: vast
+  budget van 650 Spotify Search-calls per rollende 24u (`CALL_LIMIT`, sinds
+  2026-09-24; daarvoor zelf-calibrerend, zie Les 10 in `LessonsLearned.md`). Gebruikt door `sync_playlist.py`/`build_playlist.py`
   vóór elke nieuwe matching-poging.
 - **`matching.py`** (module) — de tekst-matchlogica (`best_candidate()`,
   titel-/artiestvergelijking) losgetrokken uit `sync_playlist.py` zodat
@@ -108,8 +110,7 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   `verify` (alleen een kandidaat-id), `done` (Spotify heeft gesproken).
 - **`quota.py` — buckets:** `search_calls.bucket` markeert waarvoor een call is
   gebruikt (`new`/`verify`); een bucket met een aandeel (`new`, 80%) stopt met
-  `BucketExhausted` — dat telt bewust *niet* als bewijs over Spotify's echte
-  plafond (geen +25). De `verify`-bucket heeft geen eigen plafond, dus wat
+  `BucketExhausted`. De `verify`-bucket heeft geen eigen plafond, dus wat
   `new` niet gebruikt stroomt door.
 - **`scrape.py [station] [--source auto|relisten|onlineradiobox] [--days N]`**
   — haalt afspeelhistorie op en slaat die op in `plays`. Bron per zender:
@@ -237,6 +238,36 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (`sync_playlist.py`, `build_playlist.py`, `fetch_audio_features.py`,
   `remove_station.py`) opnieuw getest tegen de nieuwe tabellen — werken
   allemaal. Oude tabel daarna verwijderd.
+- **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
+  (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
+  échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
+  zelf-calibrerend budgetsysteem (`quota.py`) i.p.v. een vast aantal — zie
+  Les 10. Onderweg ontdekt dat onze eigen `retries=0`-fix (Les 5) de echte
+  `Retry-After`/`reason` van élke 429 verborg via een ander spotipy-
+  foutpad; gefixt met `status_forcelist=[999]`. Live geverifieerd tegen de
+  actieve blokkade van vandaag: `QuotaBlocked` wordt nu binnen 0,08s
+  herkend (i.p.v. 5 nutteloze retries), met de échte `reason:
+  "QUOTA_EXCEEDED"` en `Retry-After`. Budget gestart op 300 calls/24u.
+- **2026-09-19 (nog later)**: `quota.SearchBudget` bugfix (verhoogde limiet
+  ten onrechte bij elke kleine, blokkadevrije run — nu alleen als de limiet
+  ook echt is opgezocht). Daarna: ReccoBeats als fallback-zoekpad gebouwd
+  (`reccobeats.py`) voor als Spotify geblokkeerd is, matching-logica
+  losgetrokken naar `matching.py` om de circulaire import te vermijden, en
+  `tracks` uitgebreid met `source`/`reccobeats_id`. Live getest tegen de
+  nog actieve blokkade van vandaag: 7/8 nummers correct via ReccoBeats
+  gematcht, en het "upgrade bij Spotify-bevestiging"-pad geverifieerd
+  (geen duplicaat, `source` correct bijgewerkt). Zie Les 11.
+- **2026-09-19 (avond)**: 4 nieuwe zenders toegevoegd (Zeilsteen Radio,
+  SLAM! Non Stop, NPO Radio 2; NPO 3FM onderzocht maar niet toegevoegd, zie
+  hieronder). Vervolgens de matching-achterstand aangepakt: van de 7.708
+  unieke nummers over alle zenders was tot dan toe nog maar ~10% ooit
+  geprobeerd te matchen. `match_reccobeats_backlog.py` gebouwd om dit
+  proactief (los van de fallback-rol) via ReccoBeats weg te werken, zonder
+  het Spotify-budget aan te spreken. Onderweg een echte bug gevonden en
+  gefixt (een batch van 500 crashte op één kort titeltje, "Pa" — zie Les
+  11-vervolg). Na de fix: 353/500 (70,6%) in één run gematcht, waarmee de
+  achterstand van ~10% naar ~17% geprobeerd ging.
+
 - **2026-09-20**: database losgekoppeld van Spotify (issue #2) — nieuwe
   tabel `track_services`; `tracks` heeft alleen nog `id`/`title`/`isrc`;
   `playlist_tracks`, `blocklist` en `audio_features` staan nu op `track_id`;
@@ -364,35 +395,37 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   vóór de samenvatting, zie Les 16.) Wachtrij daarna: 1.910 `new` (was 2.609),
   11.459 `verify`, 1.602 door Spotify afgehandeld; 1.459 Spotify-bevestigd,
   11.777 kandidaten.
-- **2026-09-19 (later die dag)**: een volledige `sync_playlist.py pingclass`
-  (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
-  échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
-  zelf-calibrerend budgetsysteem (`quota.py`) i.p.v. een vast aantal — zie
-  Les 10. Onderweg ontdekt dat onze eigen `retries=0`-fix (Les 5) de echte
-  `Retry-After`/`reason` van élke 429 verborg via een ander spotipy-
-  foutpad; gefixt met `status_forcelist=[999]`. Live geverifieerd tegen de
-  actieve blokkade van vandaag: `QuotaBlocked` wordt nu binnen 0,08s
-  herkend (i.p.v. 5 nutteloze retries), met de échte `reason:
-  "QUOTA_EXCEEDED"` en `Retry-After`. Budget gestart op 300 calls/24u.
-- **2026-09-19 (nog later)**: `quota.SearchBudget` bugfix (verhoogde limiet
-  ten onrechte bij elke kleine, blokkadevrije run — nu alleen als de limiet
-  ook echt is opgezocht). Daarna: ReccoBeats als fallback-zoekpad gebouwd
-  (`reccobeats.py`) voor als Spotify geblokkeerd is, matching-logica
-  losgetrokken naar `matching.py` om de circulaire import te vermijden, en
-  `tracks` uitgebreid met `source`/`reccobeats_id`. Live getest tegen de
-  nog actieve blokkade van vandaag: 7/8 nummers correct via ReccoBeats
-  gematcht, en het "upgrade bij Spotify-bevestiging"-pad geverifieerd
-  (geen duplicaat, `source` correct bijgewerkt). Zie Les 11.
-- **2026-09-19 (avond)**: 4 nieuwe zenders toegevoegd (Zeilsteen Radio,
-  SLAM! Non Stop, NPO Radio 2; NPO 3FM onderzocht maar niet toegevoegd, zie
-  hieronder). Vervolgens de matching-achterstand aangepakt: van de 7.708
-  unieke nummers over alle zenders was tot dan toe nog maar ~10% ooit
-  geprobeerd te matchen. `match_reccobeats_backlog.py` gebouwd om dit
-  proactief (los van de fallback-rol) via ReccoBeats weg te werken, zonder
-  het Spotify-budget aan te spreken. Onderweg een echte bug gevonden en
-  gefixt (een batch van 500 crashte op één kort titeltje, "Pa" — zie Les
-  11-vervolg). Na de fix: 353/500 (70,6%) in één run gematcht, waarmee de
-  achterstand van ~10% naar ~17% geprobeerd ging.
+- **2026-09-24 (volledige sync)**: alle zeven zenders gescrapet (laatste
+  scrape was 22 sept, dus geen gat): 3.748 nieuwe plays. `match_relisten.py`
+  (56 songs, 44 kandidaten) en `match_tracks.py` (475 Spotify, 283
+  ReccoBeats; 12m49s): 2.271 Spotify-bevestigd (was 1.459), 12.055
+  kandidaten. Daarna alle playlists bijgewerkt; `sync_playlist.py` crashte bij
+  vier zenders op de liked-check (Les 17, batch 50 → 40), na de fix opnieuw
+  gedraaid. De zes `sync_playlist`-runs achter elkaar verhoogden de limiet
+  telkens met +25 en liepen tegen een échte `QUOTA_EXCEEDED` aan bij ~700
+  calls in 24 uur (geblokkeerd tot 25 sept 08:07). Besluit: **vaste limiet
+  van 650**, geen automatisch ophogen meer (`quota.CALL_LIMIT`). En: alleen
+  nog twee playlists bijhouden (zie hieronder); de zenderplaylists waren per
+  ongeluk aangemaakt en blijven staan zoals ze nu zijn.
+
+## Welke playlists worden bijgehouden (2026-09-24)
+Alleen **"RadioScrobbler - Zeilsteen Top 90"** en **"RadioScrobbler - Kink
+Distortion Sunday morning"** (via `build_playlist.py`, zelfde opties als bij
+het aanmaken). De playlists per zender (`sync_playlist.py`: Penguin Classics,
+KINK Classics, KINK Distortion, Zeilsteen Radio, SLAM! Non Stop, NPO Radio 2)
+waren per ongeluk aangemaakt en worden niet meer bijgewerkt, net als
+"RadioScrobbled" en "RadioScrobbler - Vrijdagavond". Ze blijven op Spotify
+staan zoals ze op 2026-09-24 waren.
+
+```bash
+.venv/bin/python3 build_playlist.py "RadioScrobbler - Zeilsteen Top 90" --top 90 \
+  --exclude-station pingclass --exclude-station kinkclassics --exclude-station kinkdistortion \
+  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm
+.venv/bin/python3 build_playlist.py "RadioScrobbler - Kink Distortion Sunday morning" \
+  --daynr 7 --daypart 1 --top 90 \
+  --exclude-station pingclass --exclude-station kinkclassics --exclude-station zeilsteen \
+  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm
+```
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)
 Idee: een Spotify-playlist "Verbannen Nummers" als zichtbare, handmatig te beheren
@@ -428,7 +461,7 @@ dat mogelijk zelden voorkomt — en zelfs dan geen garantie geeft ("populair"
 ≠ "wat de radio speelde"). Oppakken zodra het echt een keer fout blijkt te
 gaan in de praktijk.
 
-## Openstaand: NPO 3FM heeft geen tracklist-data op OnlineRadioBox
+## Opgelost (2026-09-21, via relisten.nl): NPO 3FM heeft geen tracklist-data op OnlineRadioBox
 Getest (2026-09-19): OnlineRadioBox heeft voor `npo3fm` op **geen enkele**
 van de 7 dagen tracklist-data ("Helaas gaf het radiostation geen playlist
 op voor deze dag") — geen tijdelijk gat, de zender levert deze bron

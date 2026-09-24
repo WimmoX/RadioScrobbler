@@ -30,8 +30,8 @@ Cross-references: GitHub #1 (other sources), #4 (matching algorithm),
 DEEL 0 — FOUNDATIONS (prerequisites found during review)
 =====================================================
 
-### RS-DEV-01 — Set up automated tests  [NEW]
-**Description:** The repository has no tests (no test folder, no pytest in
+### RS-DEV-01 — Set up automated tests  [PARTLY DONE — 37 tests in `tests/` as of 2026-09-24]
+**Description:** (At the time of the revision) the repository had no tests (no test folder, no pytest in
 requirements.txt), yet several items below require tests. Several past bugs
 (see LessonsLearned.md, Les 8, 10, 13, 14) are exactly the kind a small test
 suite would have caught.
@@ -358,7 +358,8 @@ reason in a UI, and ReccoBeats-only stations of the queue in scheduled jobs (RS-
   count double") can wait until there is evidence it helps.
 - One shared ordering used by match_tracks.py, playlist sync, scheduled jobs and the
   ReccoBeats matching — no per-command ranking logic.
-- Spotify Search budget: fixed 80% for tracks with no id at all, 20% for verifying
+- Spotify Search budget (a fixed 650 calls per 24h since 2026-09-24, see
+  LessonsLearned Les 17): fixed 80% for tracks with no id at all, 20% for verifying
   existing candidates (ReccoBeats or Relisten). Each bucket is ordered by
   priority internally. Suggested addition: budget a bucket does not use flows to
   the other one, otherwise the 80% sits idle once the few unresolved tracks are done.

@@ -23,15 +23,20 @@ RadioScrobbler fixes that:
 
 You just listen to the playlist from now on, not the radio. 🎧
 
-🎧 **Want to hear it instead of read about it?** The result of all this is a
-public Spotify playlist called **[RadioScrobbled](https://open.spotify.com/playlist/14mWaWuAfwPt7uq2X7DoHN)**
-— search for it on Spotify or follow the link to see exactly what's in it.
+🎧 **Want to hear it instead of read about it?** These public playlists are
+kept up to date with it:
+- **[RadioScrobbler - Zeilsteen Top 90](https://open.spotify.com/playlist/5DgYD0tWRAG9RBmnyOn05d)**
+- **[RadioScrobbler - Kink Distortion Sunday morning](https://open.spotify.com/playlist/29hApsUCt6u6IedhuXTV9G)**
+
+(The first one, **[RadioScrobbled](https://open.spotify.com/playlist/14mWaWuAfwPt7uq2X7DoHN)**,
+is still there but no longer updated.)
 
 ## ✨ Features
 
-- 🔁 **Multiple stations at once** — each with its own playlist (see
-  `stations.py` for the current list: Pinguin Classics, KINK Classics,
-  KINK Distortion).
+- 🔁 **Multiple stations at once** — see `stations.py` for the current list:
+  Pinguin Classics, KINK Classics, KINK Distortion, Zeilsteen Radio,
+  SLAM! Non Stop, NPO Radio 2, NPO 3FM. History comes from OnlineRadioBox
+  (7 days) or relisten.nl (years, for Radio 2, KINK Distortion and 3FM).
 - 🧠 **Smart, not wasteful** — every track only ever gets looked up on
   Spotify once (local cache), and only the *diff* gets sent to Spotify
   instead of rebuilding the whole playlist every run.
@@ -42,10 +47,10 @@ public Spotify playlist called **[RadioScrobbled](https://open.spotify.com/playl
 - 🎵 **Audio profile per track** (optional, via
   [ReccoBeats](https://reccobeats.com)) — energy, danceability, valence,
   tempo and more, free and without an API key. See `RECCOBEATS.md`.
-- 📊 **Self-calibrating Spotify quota budget** — Spotify doesn't publish its
-  Development Mode Search limit, so the sync scripts discover it
-  empirically instead of guessing (and remember when they've been blocked,
-  so they don't hammer the API for nothing).
+- 📊 **Spotify quota budget** — Spotify doesn't publish its Development Mode
+  Search limit; we measured it (~700 calls/24h) and stay under it with a
+  fixed 650 (and remember when we've been blocked, so we don't hammer the
+  API for nothing).
 - 🔄 **ReccoBeats as a matching fallback** — if Spotify's Search is
   temporarily unavailable, matching keeps going via ReccoBeats instead of
   stopping; those matches get quietly re-confirmed against Spotify on a
@@ -78,6 +83,10 @@ cp .env.example .env   # fill in your Spotify app credentials (see below)
 
 # Step 2: sync the Spotify playlist (first run will prompt you to log in)
 .venv/bin/python3 sync_playlist.py pingclass
+
+# Or: only match tracks (Spotify budget first, then ReccoBeats), no playlists
+.venv/bin/python3 match_relisten.py
+.venv/bin/python3 match_tracks.py
 
 # Optional: fetch an audio profile (energy/valence/etc.) per track
 .venv/bin/python3 fetch_audio_features.py
@@ -124,6 +133,7 @@ file under `logs/` instead, so this stays cheap to run from anywhere
 |---|---|---|
 | `scrape.py` | Fetches played tracks (relisten.nl or OnlineRadioBox, per station) and stores them | ❌ |
 | `match_relisten.py` | Turns relisten.nl song ids into candidate Spotify matches | ❌ (relisten's redirect instead) |
+| `match_reccobeats_backlog.py` | Matches unmatched tracks via ReccoBeats only | ❌ (ReccoBeats instead) |
 | `match_tracks.py` | Matches played tracks (most played first) to Spotify only — never touches a playlist | ✅ (Search) |
 | `sync_playlist.py` | Matches tracks, computes the diff, updates the playlist | ✅ |
 | `resync_playlist.py` | Reconciles the local cache with the real playlist contents | ✅ |
@@ -145,6 +155,7 @@ Want more detail? 📖
   error meanings) plus a rundown of the other external sources
   (OnlineRadioBox, ReccoBeats, MusicBrainz).
 - **`RECCOBEATS.md`** — how the audio-profile integration works.
+- **`Backlogitems1.md`** — the backlog (RS-* tickets) towards a UI and Docker.
 
 ## 🗺️ Roadmap
 
@@ -153,7 +164,8 @@ Want more detail? 📖
 - [x] Multiple stations
 - [x] Audio profile per track (ReccoBeats)
 - [ ] "Banned Tracks" playlist as a manually managed blocklist
-- [ ] Separate playlists per daypart (weekday-day/evening, weekend-morning/afternoon/evening, ...)
+- [x] Playlists per day/daypart window (`build_playlist.py`)
+- [ ] Saved playlist definitions and configurable dayparts (RS-PLAY-01, RS-UI-16)
 - [ ] Docker container with a minimal UI to pick station + music service
 
 ## 🛠️ Tech

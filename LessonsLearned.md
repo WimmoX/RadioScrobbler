@@ -225,7 +225,8 @@ dan of de onderliggende foutafhandeling (headers, foutdetails) ook
 volledig intact blijft in dat pad — een library kan retries uitzetten en
 tegelijk stilzwijgend informatie laten verdwijnen via een ander pad.
 
-**Feature: self-calibrerend Search-quota-budget (`quota.py`).** Spotify
+**Feature: self-calibrerend Search-quota-budget (`quota.py`).** *(Vervangen
+op 2026-09-24 door een vaste limiet van 650, zie Les 17.)* Spotify
 publiceert het quotum voor Development Mode-apps niet (en het kan
 wijzigen), dus i.p.v. blind een vast getal aan te houden, ontdekken we het
 empirisch: een run die zijn eigen zelfopgelegde limiet opbrengt zónder een
@@ -426,3 +427,27 @@ Hetzelfde voor `match_relisten.py` (een niet-beantwoord verzoek telt niet als
 gewoon opnieuw starten en pakt hij de rest op.
 → Een cache mag alleen antwoorden onthouden, geen afwezigheid van een
 antwoord: onderscheid "de bron zei nee" van "de bron zei niets".
+
+**Les 17 — Een "ophogen bij succes"-limiet loopt vanzelf tegen het plafond
+aan, en een batchlimiet kan onaangekondigd dalen.** Bij de volledige sync van
+2026-09-24 gingen twee dingen mis:
+1. **Liked-check crashte op 50 URI's.** `GET /me/library/contains` (spotipy's
+   `current_user_saved_tracks_contains`) gaf `400 Too many uris requested`.
+   Gemeten: 40 werkt, 41 niet. De code batchte 50 — dat werkte eerder, of
+   werd nooit geraakt: bij KINK Classics en Zeilsteen waren er minder dan 50
+   nummers om te verwijderen (één batch), dus alleen zenders met véél
+   verwijderkandidaten crashten. De crash kwam vóór enige playlistwijziging,
+   dus er stond niets half. Fix: `LIKED_CHECK_BATCH = 40` in
+   `sync_playlist.py` (ook gebruikt door `build_playlist.py`).
+2. **Het zelf-calibrerende budget (Les 10) duwde zichzelf in een blokkade.**
+   `match_tracks.py` maakte de limiet op, en daarna deed elke
+   `sync_playlist.py`-run (zes achter elkaar) er +25 bij en maakte die ook
+   op: 475 → ~700 calls in 24 uur, en toen een echte `QUOTA_EXCEEDED` (tot de
+   volgende ochtend). Het "bewijs" per run (limiet op zonder blokkade) klopte
+   wel, maar bij veel runs achter elkaar is "+25 per run" gewoon een
+   trap omhoog tot het echte plafond. Besluit: vaste limiet van 650
+   (`quota.CALL_LIMIT`), geen automatisch ophogen of terugsnappen meer.
+→ Additive increase is geschikt om een onbekend plafond te vinden, niet om er
+eindeloos tegenaan te blijven zitten: zodra het plafond gemeten is, zet de
+limiet vast er net onder. En: test batchgroottes bij een verdacht 400 met een
+paar losse aantallen (20/40/41) in plaats van te gokken.

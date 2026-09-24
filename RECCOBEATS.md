@@ -143,8 +143,12 @@ Spotify. Getest (2026-09-08) met twee bekende tracks + één niet-bestaand
 nummer (om de "geen match"-cache te checken) — werkt, en een herhaalde run
 doet niets meer zodra alles gecachet is.
 
-Nog niet gebruikt: `sync_playlist.py` (of een toekomstige dagdeel-indeling,
-Level 2) zou hierop kunnen filteren/sorteren, bv. "alleen high-energy
-nummers in de weekdag-ochtend-playlist". Vereist wel eerst dat
-`sync_playlist.py` daadwerkelijk tracks matcht (zie `PROGRESS.md` —
-geblokkeerd geweest door de Spotify-rate-limit-lockout).
+Nog niet gebruikt: `build_playlist.py` zou hierop kunnen filteren/sorteren,
+bv. "alleen high-energy nummers in de zondagochtend-playlist". Dekking is nog
+laag (325 tracks per 2026-09-21, zie RS-UI-07 in `Backlogitems1.md`), dus
+eerst `fetch_audio_features.py` over alle gematchte tracks draaien.
+
+## Ook in gebruik
+- `reccobeats.py:search_track()` — fallback-zoekpad als Spotify's Search-
+  budget op is, en proactief via `match_reccobeats_backlog.py` /
+  stap 3 van `match_tracks.py` (Les 11, 15, 16). Geeft ook de `isrc` mee.
