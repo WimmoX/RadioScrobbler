@@ -1,18 +1,17 @@
-"""Self-calibrating budget for Spotify Search calls.
+"""Budget for Spotify Search calls: a fixed number of calls per rolling 24h.
 
-Spotify doesn't publish the Development Mode quota for Search, and it can
-change — so instead of guessing a fixed number, we probe it: a run that
-exhausts its self-imposed limit without ever getting a real 429 nudges the
-limit up a bit for next time (additive increase). A run that DOES get a
-real "quota exceeded" response snaps the limit straight down to however
-many calls actually succeeded in the trailing 24h window before the block —
-that's the true, current ceiling, not a guess. See LessonsLearned.md.
+Spotify doesn't publish the Development Mode quota for Search. We used to
+probe it (+25 per run that used up its limit, snap down on a real block, see
+LessonsLearned.md Les 10), but on 2026-09-24 a real QUOTA_EXCEEDED came at
+~700 calls in 24h. The limit is now fixed at CALL_LIMIT, safely below that,
+and never changes by itself. A real block still stops all Search calls until
+Spotify's Retry-After has passed.
 """
 from datetime import datetime, timedelta
 
 import db
 
-STEP = 25
+CALL_LIMIT = 650
 
 
 class QuotaExhausted(Exception):
@@ -40,10 +39,10 @@ class SearchBudget:
 
     def __init__(self, conn):
         self.conn = conn
-        self.limit, blocked_until = db.get_quota_state(conn)
+        _, blocked_until = db.get_quota_state(conn)
+        self.limit = CALL_LIMIT
         self.blocked_until = datetime.fromisoformat(blocked_until) if blocked_until else None
         self._hit_real_block = False
-        self._hit_own_limit = False
         self.bucket: str | None = None
         self.bucket_share: float | None = None
 
@@ -69,7 +68,6 @@ class SearchBudget:
             remaining = int((self.blocked_until - datetime.now()).total_seconds())
             raise QuotaBlocked(remaining)
         if db.search_calls_in_last_24h(self.conn) >= self.limit:
-            self._hit_own_limit = True
             raise QuotaExhausted()
         if self.bucket and self.bucket_share is not None:
             if db.search_calls_in_last_24h(self.conn, self.bucket) >= int(self.bucket_share * self.limit):
@@ -80,26 +78,10 @@ class SearchBudget:
 
     def record_block(self, retry_after_seconds: int) -> None:
         """Call when Spotify returns a 429 we're treating as a real block."""
-        actual = db.search_calls_in_last_24h(self.conn)
-        # 0 logged calls says nothing about the real ceiling (e.g. the calls
-        # that caused the block pre-date the call log): snapping to 0 would
-        # make every later run instantly "exhausted" and only creep up by
-        # STEP per run. Keep the current limit in that case.
-        if actual > 0:
-            self.limit = actual
         self.blocked_until = datetime.now() + timedelta(seconds=retry_after_seconds)
-        db.set_call_limit(self.conn, self.limit)
         db.set_blocked_until(self.conn, self.blocked_until.isoformat())
         self._hit_real_block = True
 
     def finish(self) -> None:
-        """Call once at the end of a run. Only nudge the limit up if this run
-        actually pushed against it (self-imposed QuotaExhausted was raised)
-        AND Spotify never complained — that's the only situation with real
-        evidence there's headroom. A run that finishes early just because
-        there weren't many new tracks to look up proves nothing about the
-        real ceiling and must NOT inflate the limit — otherwise a handful of
-        small, harmless sessions would ratchet it up for no reason."""
-        if self._hit_own_limit and not self._hit_real_block:
-            self.limit += STEP
-            db.set_call_limit(self.conn, self.limit)
+        """Call once at the end of a run. Nothing to do since the limit is fixed;
+        kept so the callers don't need to change if that ever comes back."""

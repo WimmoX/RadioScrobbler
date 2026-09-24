@@ -25,15 +25,16 @@ def test_a_capped_bucket_stops_at_its_share_without_touching_the_real_limit(conn
     assert b.limit == 100                       # a bucket cap says nothing about Spotify's real ceiling
 
 
-def test_the_overall_limit_still_raises_the_limit_afterwards(conn):
-    b = budget(conn)
+def test_the_limit_is_fixed_and_does_not_rise_after_using_it_up(conn):
+    b = quota.SearchBudget(conn)
+    assert b.limit == quota.CALL_LIMIT == 650
     b.set_bucket("verify", None)
-    log(conn, 100, "new")
+    log(conn, quota.CALL_LIMIT, "new")
     with pytest.raises(quota.QuotaExhausted) as excinfo:
         b.check()
     assert not isinstance(excinfo.value, quota.BucketExhausted)
     b.finish()
-    assert b.limit == 100 + quota.STEP
+    assert quota.SearchBudget(conn).limit == quota.CALL_LIMIT
 
 
 def test_what_the_capped_bucket_left_unused_flows_to_the_uncapped_one(conn):
@@ -59,7 +60,10 @@ def test_calls_are_tagged_with_their_bucket(conn):
     assert db.search_calls_in_last_24h(conn) == 3
 
 
-def test_a_real_block_with_no_logged_calls_does_not_set_the_limit_to_zero(conn):
-    b = budget(conn, 300)
+def test_a_real_block_stops_searching_but_does_not_change_the_limit(conn):
+    b = quota.SearchBudget(conn)
+    log(conn, 10, "new")
     b.record_block(3600)
-    assert b.limit == 300 and b.blocked
+    assert b.limit == quota.CALL_LIMIT and b.blocked
+    with pytest.raises(quota.QuotaBlocked):
+        quota.SearchBudget(conn).check()        # the block survives into the next run
