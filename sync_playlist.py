@@ -21,6 +21,9 @@ from stations import STATIONS
 
 SCOPE = "playlist-modify-public playlist-modify-private playlist-read-private user-library-read"
 LOOKBACK_DAYS = 14
+# GET /me/library/contains rejects more than 40 URIs per call with
+# "400 Too many uris requested" (measured 2026-09-24: 40 ok, 41 fails).
+LIKED_CHECK_BATCH = 40
 
 
 def get_spotify_client() -> spotipy.Spotify:
@@ -106,7 +109,7 @@ def filter_liked(sp: spotipy.Spotify, uris: list[str]) -> set[str]:
     """Return the subset of `uris` that are saved in the user's Liked Songs."""
     liked = set()
     track_ids = [uri.split(":")[-1] for uri in uris]
-    for batch, id_batch in zip(_batched(uris, 50), _batched(track_ids, 50)):
+    for batch, id_batch in zip(_batched(uris, LIKED_CHECK_BATCH), _batched(track_ids, LIKED_CHECK_BATCH)):
         results = _call_with_retry(sp.current_user_saved_tracks_contains, id_batch)
         liked.update(uri for uri, is_saved in zip(batch, results) if is_saved)
     return liked
