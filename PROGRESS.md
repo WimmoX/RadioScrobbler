@@ -413,7 +413,12 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (+113 ReccoBeats, 6 min), Spotify-budget daarmee op. Stand: 2.833
   Spotify-bevestigd (was 2.271), 12.036 kandidaten. Fix voor de crash:
   Spotify-storingen worden herhaald en daarna overgeslagen zonder cache
-  (Les 18). 42 tests. Playlists nog niet bijgewerkt.
+  (Les 18). 42 tests.
+- **2026-09-27 (volledige sync)**: alle zeven zenders gescrapet (3.611
+  nieuwe plays), `match_relisten.py` (101 songs, 89 kandidaten) en
+  `match_tracks.py` (529 Spotify, geen storingen; budget op): 3.279
+  Spotify-bevestigd. De twee bijgehouden playlists bijgewerkt: Zeilsteen
+  Top 90 +6/−6, KD Sunday morning +10/−10 (beide 90 nummers).
 
 ## Welke playlists worden bijgehouden (2026-09-24)
 Alleen **"RadioScrobbler - Zeilsteen Top 90"** en **"RadioScrobbler - Kink
