@@ -128,6 +128,9 @@ def main():
     elapsed = int(time.monotonic() - started)
     print(f"Done in {elapsed // 60}m{elapsed % 60:02d}s: {resolver.new_lookups} new lookups "
           f"({resolver.spotify_lookups} Spotify, {resolver.reccobeats_lookups} ReccoBeats)")
+    if resolver.spotify_errors or resolver.reccobeats_errors:
+        print(f"Not answered (nothing recorded, next run asks again): {resolver.spotify_errors} Spotify, "
+              f"{resolver.reccobeats_errors} ReccoBeats")
     if budget.blocked or budget.exhausted():
         print(f"Spotify Search budget used up for now (limit={budget.limit}/24h, "
               f"blocked_until={budget.blocked_until}).")

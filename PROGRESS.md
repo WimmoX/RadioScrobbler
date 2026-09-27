@@ -407,6 +407,13 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   van 650**, geen automatisch ophogen meer (`quota.CALL_LIMIT`). En: alleen
   nog twee playlists bijhouden (zie hieronder); de zenderplaylists waren per
   ongeluk aangemaakt en blijven staan zoals ze nu zijn.
+- **2026-09-26 (matching)**: na een scrape `match_relisten.py` (71 songs,
+  58 kandidaten, 13 zonder link) en `match_tracks.py`. Die crashte na ~265
+  Spotify-lookups op een `502` van Spotify; herstart deed er nog 267
+  (+113 ReccoBeats, 6 min), Spotify-budget daarmee op. Stand: 2.833
+  Spotify-bevestigd (was 2.271), 12.036 kandidaten. Fix voor de crash:
+  Spotify-storingen worden herhaald en daarna overgeslagen zonder cache
+  (Les 18). 42 tests. Playlists nog niet bijgewerkt.
 
 ## Welke playlists worden bijgehouden (2026-09-24)
 Alleen **"RadioScrobbler - Zeilsteen Top 90"** en **"RadioScrobbler - Kink

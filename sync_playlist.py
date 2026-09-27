@@ -7,6 +7,9 @@ import argparse
 import os
 from datetime import datetime, timedelta
 
+import time
+
+import requests
 import spotipy
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
@@ -24,6 +27,7 @@ LOOKBACK_DAYS = 14
 # GET /me/library/contains rejects more than 40 URIs per call with
 # "400 Too many uris requested" (measured 2026-09-24: 40 ok, 41 fails).
 LIKED_CHECK_BATCH = 40
+SEARCH_RETRY_WAITS = (2, 5, 15)   # seconds before each retry of a Search call Spotify couldn't answer
 
 
 def get_spotify_client() -> spotipy.Spotify:
@@ -73,7 +77,11 @@ def _call_with_retry(fn, *args, **kwargs):
                 if e.reason == "QUOTA_EXCEEDED":
                     raise quota.QuotaBlocked(retry_after)
                 raise RateLimited(retry_after)
+            if e.http_status >= 500:
+                raise quota.SpotifyUnavailable(f"HTTP {e.http_status}") from e
             raise
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            raise quota.SpotifyUnavailable(f"{type(e).__name__}: {e}") from e
     return call_with_retry(attempt)
 
 
@@ -86,8 +94,19 @@ def find_track_match(sp: spotipy.Spotify, artist: str, title: str, budget: quota
     Raises quota.QuotaExhausted / quota.QuotaBlocked instead of making a
     Search call we shouldn't — see quota.py."""
     def do_search(query):
-        budget.check()
-        results = _call_with_retry(sp.search, q=query, type="track", limit=5)
+        # A 5xx/timeout is retried here, for Search only: retrying a playlist
+        # write that Spotify may have half-applied could add a track twice.
+        for wait in (*SEARCH_RETRY_WAITS, None):
+            budget.check()
+            try:
+                results = _call_with_retry(sp.search, q=query, type="track", limit=5)
+                break
+            except quota.SpotifyUnavailable:
+                budget.record_call()   # it may still count at Spotify's side
+                if wait is None:
+                    raise
+                print(f"  Spotify didn't answer, retrying in {wait}s...", flush=True)
+                time.sleep(wait)
         budget.record_call()
         return results["tracks"]["items"]
 

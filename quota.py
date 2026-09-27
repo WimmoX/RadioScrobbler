@@ -32,6 +32,12 @@ class QuotaBlocked(Exception):
         super().__init__(f"quota exceeded, retry after {retry_after_seconds}s")
 
 
+class SpotifyUnavailable(Exception):
+    """Spotify could not answer (5xx, timeout, connection error), even after a
+    few retries. That is NOT "no match": nothing may be cached about the track
+    (same rule as reccobeats.SearchFailed, LessonsLearned.md Les 16)."""
+
+
 class SearchBudget:
     """Use as: budget.check() before each Search call, budget.record_call()
     after a successful one, budget.record_block(seconds) on a real 429, and

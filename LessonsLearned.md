@@ -451,3 +451,20 @@ aan, en een batchlimiet kan onaangekondigd dalen.** Bij de volledige sync van
 eindeloos tegenaan te blijven zitten: zodra het plafond gemeten is, zet de
 limiet vast er net onder. En: test batchgroottes bij een verdacht 400 met een
 paar losse aantallen (20/40/41) in plaats van te gokken.
+
+**Les 18 — Ook Spotify heeft storingen, en die zijn geen "geen match".** Bij
+`match_tracks.py` op 2026-09-26 gaf Spotify's Search na ~265 nummers een
+`502 Bad Gateway` ("An unexpected error occurred. Please try again later.").
+Onze retry (`retry.py`) kende alleen 429, dus de hele run stopte. Een directe
+herstart liep zonder problemen: het was een voorbijgaande storing aan
+Spotify's kant. Fix, zelfde regel als Les 16 voor ReccoBeats: een 5xx,
+timeout of verbindingsfout wordt `quota.SpotifyUnavailable`; een Search-call
+wordt daarna tot drie keer opnieuw geprobeerd (2, 5, 15 s), en lukt het dan
+nog niet, dan slaat de `Resolver` het nummer over zonder iets over Spotify op
+te slaan (een latere run vraagt opnieuw). Na drie nummers op rij zonder
+antwoord stopt de run met Spotify en gaat verder op ReccoBeats. Alleen Search
+wordt herhaald, geen playlist-wijzigingen: een write die Spotify half heeft
+uitgevoerd zou bij herhalen een nummer dubbel kunnen toevoegen. Mislukte
+calls tellen mee in het budget, omdat niet bekend is of Spotify ze meetelt.
+→ Elke externe API krijgt dezelfde drie uitkomsten: antwoord, "niets
+gevonden" (mag gecachet), en "geen antwoord" (mag nooit gecachet).

@@ -22,6 +22,7 @@ import quota
 import reccobeats
 
 PROGRESS_EVERY = 200
+MAX_SPOTIFY_FAILURES_IN_A_ROW = 3
 
 
 class Resolver:
@@ -43,6 +44,8 @@ class Resolver:
         self.spotify_lookups = 0
         self.reccobeats_lookups = 0
         self.reccobeats_errors = 0
+        self.spotify_errors = 0
+        self._spotify_failures_in_a_row = 0
         self.started = time.monotonic()
 
     @property
@@ -75,7 +78,18 @@ class Resolver:
             except quota.QuotaBlocked as e:
                 self.budget.record_block(e.retry_after_seconds)
                 self.spotify_available = False
+            except quota.SpotifyUnavailable:
+                # Not a miss: record nothing for Spotify (a later run asks
+                # again) and fall through to the candidate/ReccoBeats path. Spotify
+                # being down for several tracks in a row means an outage, not
+                # a bad query, so stop asking it for the rest of this run.
+                self.spotify_errors += 1
+                self._spotify_failures_in_a_row += 1
+                if self._spotify_failures_in_a_row >= MAX_SPOTIFY_FAILURES_IN_A_ROW:
+                    print("  Spotify keeps failing; continuing without it for this run", flush=True)
+                    self.spotify_available = False
             else:
+                self._spotify_failures_in_a_row = 0
                 db.save_match(
                     self.conn, artist, title, match["uri"] if match else None,
                     match["name"] if match else None,
