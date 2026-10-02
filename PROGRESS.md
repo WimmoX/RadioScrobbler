@@ -52,15 +52,15 @@ Voor een langer venster (bv. 2-3 weken) moet het scrape-script regelmatig
 Losse database i.p.v. rechtstreeks tegen Spotify praten, om drie redenen:
 1. Langere geschiedenis opbouwen dan de 7 dagen die OnlineRadioBox geeft.
 2. Spotify Search-resultaten cachen, zodat we nooit twee keer naar hetzelfde
-   nummer zoeken (zie "Les 1" hieronder).
+   nummer zoeken (zie "RS-001" hieronder).
 3. Lokaal bijhouden wat er (naar ons weten) al in een Spotify-playlist staat,
    zodat we alleen het verschil (toevoegen/verwijderen) naar Spotify hoeven
    te sturen in plaats van steeds de hele boel te herbouwen.
 
 Tabellen:
-- `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie Les 8.
+- `plays` — station_slug, artist, title, played_at (ruwe scrape-data, dedupliceert vanzelf op basis van PRIMARY KEY). Plus drie *generated columns*, puur afgeleid van `played_at` (nooit apart opgeslagen, dus nooit uit sync te raken): `daynr` (ma=1..zo=7), `hr` (uur 0-23), `daypart` (0=nacht/1=ochtend/2=middag/3=avond). Handig voor selecties als "zondagochtend" of "weekend-energy" (Level 2, dagdeel-playlists) zonder dat er ooit een backfill-script voor nodig was — zie RS-008.
 - `artists` (id, naam) / `tracks` (id, titel, `isrc`) / `track_artists` (n-op-n koppeling — een nummer kan meerdere artiesten hebben) — genormaliseerde matching-laag, sinds 2026-09-19 (was: platte `spotify_matches`-tabel). Bevat de écht van Spotify afkomstige, gestructureerde artiestenlijst (niet onze eigen zoek-tekst), dus geen fragiele string-splitting meer nodig om erachter te komen welke artiesten bij een nummer horen. Een `track` is sinds 2026-09-20 muziekdienst-onafhankelijk (issue #2): het heeft een eigen id, en de verwijzing naar Spotify (of een andere dienst) staat in `track_services`. `isrc` is de internationale opnamecode — de enige sleutel die alle diensten delen; wordt nu alleen gevuld als ReccoBeats 'm meegeeft (0 van 1.227 tracks per 2026-09-20, want de bestaande matches zijn van vóór die koppeling).
-- `track_services` (track_id, `service`, `external_id`, `verified`) — één rij per (track, dienst): `service='spotify'` met de volledige `spotify:track:...`-URI (dat is wat Spotify's API verwacht), `service='reccobeats'` met het ReccoBeats-id (geen luisterdienst, maar wel een plek met een eigen id voor de opname). `verified=1` = de dienst zélf heeft de match bevestigd; `verified=0` = alleen een kandidaat-id via de ReccoBeats-fallback (zie Les 11) — telt als niet-definitief-gecached totdat een latere run Spotify erbij haalt. Een tweede dienst toevoegen = rijen met een andere `service`, geen schemawijziging.
+- `track_services` (track_id, `service`, `external_id`, `verified`) — één rij per (track, dienst): `service='spotify'` met de volledige `spotify:track:...`-URI (dat is wat Spotify's API verwacht), `service='reccobeats'` met het ReccoBeats-id (geen luisterdienst, maar wel een plek met een eigen id voor de opname). `verified=1` = de dienst zélf heeft de match bevestigd; `verified=0` = alleen een kandidaat-id via de ReccoBeats-fallback (zie RS-011) — telt als niet-definitief-gecached totdat een latere run Spotify erbij haalt. Een tweede dienst toevoegen = rijen met een andere `service`, geen schemawijziging.
 - `track_match` (artiest-tekst, titel-tekst, `service`) → track_id (of `NULL` = bewust "geen match gevonden bij die dienst", ook gecached) — de brug tussen `plays`' platte tekst en een genormaliseerd `track`. `plays` zelf blijft platte tekst (zie hierboven) en wordt dus nooit verplicht een match te hebben voordat een scrape kan landen. `service` zit in de sleutel zodat "Spotify vond niets" een andere dienst later niet blokkeert.
 - `playlists` (station_slug, `service`) → playlist_id — voorkomt dat we elke run opnieuw playlists moeten opzoeken.
 - `playlist_tracks` — wat we denken dat er (per zender) in de playlist staat; op `track_id`.
@@ -72,11 +72,11 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
 ### Scripts
 - **`quota.py`** (geen los script, een module) — `SearchBudget`: vast
   budget van 650 Spotify Search-calls per rollende 24u (`CALL_LIMIT`, sinds
-  2026-09-24; daarvoor zelf-calibrerend, zie Les 10 in `LessonsLearned.md`). Gebruikt door `sync_playlist.py`/`build_playlist.py`
+  2026-09-24; daarvoor zelf-calibrerend, zie RS-010 in `LessonsLearned.md`). Gebruikt door `sync_playlist.py`/`build_playlist.py`
   vóór elke nieuwe matching-poging.
 - **`matching.py`** (module) — de tekst-matchlogica (`best_candidate()`,
   titel-/artiestvergelijking) losgetrokken uit `sync_playlist.py` zodat
-  `reccobeats.py` 'm ook kan gebruiken zonder circulaire import (zie Les 11).
+  `reccobeats.py` 'm ook kan gebruiken zonder circulaire import (zie RS-011).
 - **`reccobeats.py`** (module) — `search_track()`: gratis, ongeauthenticeerd
   fallback-zoekpad via ReccoBeats voor als Spotify's Search geblokkeerd is.
   Wordt automatisch ingezet door `sync_playlist.py`/`build_playlist.py`
@@ -205,13 +205,13 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   zenders behalve KINK Distortion) succesvol aangemaakt en gevuld op Spotify.
   Onderweg nog twee bugs gevonden en gefixt die alleen in de praktijk (niet
   in code review) aan het licht kwamen: spotipy's verborgen interne retry
-  (Les 5) en het door Spotify geblokkeerde `user_playlist_create()`-endpoint
-  (Les 6). `resync_playlist.py` is met dezelfde onderliggende functies
+  (RS-005) en het door Spotify geblokkeerde `user_playlist_create()`-endpoint
+  (RS-006). `resync_playlist.py` is met dezelfde onderliggende functies
   gebouwd maar nog niet apart end-to-end getest.
 - Matching-logica in `find_track_uri()`/`_best_candidate()` flink verbeterd
   na een echte misser (Royal Blood) en enkele valse afwijzingen (accenten,
   Spotify-titeltoevoegingen zoals "(feat. X)" of "- Single Version") — zie
-  Les 7 en het vervolg daarop in `LessonsLearned.md`. "RadioScrobbled" staat
+  RS-007 en het vervolg daarop in `LessonsLearned.md`. "RadioScrobbled" staat
   nu op 30 correct gematchte nummers.
 - Nog niet gebouwd: Level 2 (dagdelen), Docker/UI, en de "Verbannen Nummers"-feature
   (zie hieronder).
@@ -222,8 +222,8 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   toevoegen/verwijderen is nu een commando i.p.v. handwerk). Daarnaast
   `plays` uitgebreid met `daynr`/`hr`/`daypart` (generated columns,
   afgeleid van `played_at`) als basis voor Level 2 (dagdeel-playlists) —
-  zie hierboven en Les 8. Migratie getest tegen de echte database, incl.
-  een bug gevonden en gefixt vóórdat 'ie live kon gaan (zie Les 8).
+  zie hierboven en RS-008. Migratie getest tegen de echte database, incl.
+  een bug gevonden en gefixt vóórdat 'ie live kon gaan (zie RS-008).
   `build_playlist.py` gebouwd om daar meteen iets mee te doen: eerste run
   ("RadioScrobbler - Vrijdagavond", daynr=5/daypart=3, top 30) leverde
   29/30 gematchte nummers op, live op Spotify.
@@ -232,7 +232,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   `plays` blijft bewust ongewijzigd (platte tekst, geen FK naar een track).
   Bestaande 107 matches gemigreerd via `migrate_normalize_matches.py`, met
   écht van Spotify opgehaalde artiestenlijsten (niet onze eigen zoek-tekst)
-  — daarbij Les 9 tegengekomen (batch-endpoint `/v1/tracks` geeft 403,
+  — daarbij RS-009 tegengekomen (batch-endpoint `/v1/tracks` geeft 403,
   single-item `/v1/tracks/{id}` werkt gewoon). Geverifieerd: 0 verschillen
   tussen oude en nieuwe data (109/109 rijen), en alle scripts
   (`sync_playlist.py`, `build_playlist.py`, `fetch_audio_features.py`,
@@ -242,7 +242,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (2482 unieke nummers, waarvan ~2100 nog niet gematcht) liep tegen een
   échte Spotify-quota-blokkade aan (~22 uur). Daaruit voortgekomen: een
   zelf-calibrerend budgetsysteem (`quota.py`) i.p.v. een vast aantal — zie
-  Les 10. Onderweg ontdekt dat onze eigen `retries=0`-fix (Les 5) de echte
+  RS-010. Onderweg ontdekt dat onze eigen `retries=0`-fix (RS-005) de echte
   `Retry-After`/`reason` van élke 429 verborg via een ander spotipy-
   foutpad; gefixt met `status_forcelist=[999]`. Live geverifieerd tegen de
   actieve blokkade van vandaag: `QuotaBlocked` wordt nu binnen 0,08s
@@ -256,7 +256,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   `tracks` uitgebreid met `source`/`reccobeats_id`. Live getest tegen de
   nog actieve blokkade van vandaag: 7/8 nummers correct via ReccoBeats
   gematcht, en het "upgrade bij Spotify-bevestiging"-pad geverifieerd
-  (geen duplicaat, `source` correct bijgewerkt). Zie Les 11.
+  (geen duplicaat, `source` correct bijgewerkt). Zie RS-011.
 - **2026-09-19 (avond)**: 4 nieuwe zenders toegevoegd (Zeilsteen Radio,
   SLAM! Non Stop, NPO Radio 2; NPO 3FM onderzocht maar niet toegevoegd, zie
   hieronder). Vervolgens de matching-achterstand aangepakt: van de 7.708
@@ -278,7 +278,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   playlist-regels, 325 audio_features, 1.286 track_match-rijen (56
   "geen match") — allemaal identiek aan vóór de migratie; `connect()` twee
   keer achter elkaar werkt; `PRAGMA foreign_key_check`/`integrity_check`
-  schoon. Zie Les 12. Ook: `reccobeats.search_track()` geeft nu de `isrc`
+  schoon. Zie RS-012. Ook: `reccobeats.search_track()` geeft nu de `isrc`
   mee, en `resync_playlist.py` registreert handmatig toegevoegde nummers als
   track (met titel/artiesten uit Spotify) omdat de tabellen nu een track
   vereisen. Onderweg ook een bestaande bug in `resync_playlist.py` gevonden
@@ -287,7 +287,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   nummers op de blocklist zetten. Read-only getest tegen de echte playlist:
   29 op Spotify, 29 lokaal bekend, geen verschillen.
 - **2026-09-20 (Spotify-ban voorbij, eerste echte batches)**: quota-limiet
-  teruggezet van 0 naar 300 (zie Les 13) en de stap opgehoogd van +10 naar
+  teruggezet van 0 naar 300 (zie RS-013) en de stap opgehoogd van +10 naar
   **+25** (anders duurt het te lang om het plafond te vinden). Eerste run
   (`sync_playlist.py pingclass`): 300 Spotify-calls zonder één 429 — het
   echte plafond ligt dus boven 300 — daarna nam ReccoBeats het over; limiet
@@ -300,7 +300,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   bevroren uit. Bug gevonden en gefixt: een ReccoBeats-miss werd door
   `sync_playlist.py`/`build_playlist.py` als definitieve "geen match"
   gecachet terwijl Spotify het nummer nooit had gezien (361 rijen, zie
-  Les 13). Stand daarna: 957 Spotify-bevestigd, 1.692 nog als kandidaat
+  RS-013). Stand daarna: 957 Spotify-bevestigd, 1.692 nog als kandidaat
   (ReccoBeats), 4.983 van de 7.708 unieke nummers nog nooit geprobeerd.
 - **2026-09-20 (avond)**: `resolve.py` (klasse `Resolver`) gebouwd — de
   gedeelde beslislogica van `sync_playlist.py`/`build_playlist.py`: cache →
@@ -330,7 +330,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   Pinguin Classics, KINK Classics, Zeilsteen en SLAM! Non Stop bestaat geen
   diepere bron: alleen de laatste 7 dagen van OnlineRadioBox bijgeladen;
   KINK Classics mist 9–14 sept, Pinguin Classics en de rest hebben ook
-  gaten (er is sinds 8/19 sept niet gescrapet). Zie Les 14 voor het
+  gaten (er is sinds 8/19 sept niet gescrapet). Zie RS-014 voor het
   dubbele-plays-probleem tussen bronnen. Daarna `match_relisten.py`: 8.817
   nummers in 87 min, 7.826 kandidaat-matches (89%), 991 zonder link. Met het
   vrije Spotify-budget (313 Search-calls, meest gespeelde eerst — nieuwe
@@ -360,7 +360,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   gratis op dezelfde zoekresultaten en doet alleen bij een miss één extra
   call (de gewone query). Gemeten op 200 echte ReccoBeats-missers: 23
   (11,5%) teruggevonden (16 omgedraaid, 6 opgeschoond, 1 samengevoegd) —
-  zie Les 15. `match_reccobeats_backlog.py --retry-misses` probeert oudere
+  zie RS-015. `match_reccobeats_backlog.py --retry-misses` probeert oudere
   missers opnieuw (`reccobeats.ALGORITHM_DATE`) en toont hoeveel per lezing.
   27 tests. Volledige run over 2.832 nummers (1.871 nooit geprobeerd + 961
   oude missers, meest gespeeld eerst) gestart.
@@ -382,7 +382,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   dagen data) en "RadioScrobbler - Kink Distortion Sunday morning" (`--daynr 7
   --daypart 1`, 90 nummers, alle 90 door Spotify bevestigd). 33 tests.
 - **2026-09-21 (storing ≠ miss)**: de `--retry-misses`-run crashte na ~950
-  nummers op een ReccoBeats-timeout. Gefixt (Les 16): netwerkfouten en 5xx
+  nummers op een ReccoBeats-timeout. Gefixt (RS-016): netwerkfouten en 5xx
   geven `reccobeats.SearchFailed`, worden herhaald en daarna overgeslagen
   zonder een miss te onthouden; ook voor `match_relisten.py`. Run
   herstart voor de resterende 2.188 nummers. 37 tests.
@@ -392,7 +392,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   artiest/titel om te draaien**, 3 door een samengevoegde artiest; 1.593
   onthouden als ReccoBeats-miss, 2 niet beantwoord (volgende run opnieuw).
   (De uitsplitsing geldt alleen voor deze run; de eerste, ~950 nummers, crashte
-  vóór de samenvatting, zie Les 16.) Wachtrij daarna: 1.910 `new` (was 2.609),
+  vóór de samenvatting, zie RS-016.) Wachtrij daarna: 1.910 `new` (was 2.609),
   11.459 `verify`, 1.602 door Spotify afgehandeld; 1.459 Spotify-bevestigd,
   11.777 kandidaten.
 - **2026-09-24 (volledige sync)**: alle zeven zenders gescrapet (laatste
@@ -400,7 +400,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (56 songs, 44 kandidaten) en `match_tracks.py` (475 Spotify, 283
   ReccoBeats; 12m49s): 2.271 Spotify-bevestigd (was 1.459), 12.055
   kandidaten. Daarna alle playlists bijgewerkt; `sync_playlist.py` crashte bij
-  vier zenders op de liked-check (Les 17, batch 50 → 40), na de fix opnieuw
+  vier zenders op de liked-check (RS-017, batch 50 → 40), na de fix opnieuw
   gedraaid. De zes `sync_playlist`-runs achter elkaar verhoogden de limiet
   telkens met +25 en liepen tegen een échte `QUOTA_EXCEEDED` aan bij ~700
   calls in 24 uur (geblokkeerd tot 25 sept 08:07). Besluit: **vaste limiet
@@ -413,7 +413,7 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (+113 ReccoBeats, 6 min), Spotify-budget daarmee op. Stand: 2.833
   Spotify-bevestigd (was 2.271), 12.036 kandidaten. Fix voor de crash:
   Spotify-storingen worden herhaald en daarna overgeslagen zonder cache
-  (Les 18). 42 tests.
+  (RS-018). 42 tests.
 - **2026-09-27 (volledige sync)**: alle zeven zenders gescrapet (3.611
   nieuwe plays), `match_relisten.py` (101 songs, 89 kandidaten) en
   `match_tracks.py` (529 Spotify, geen storingen; budget op): 3.279
@@ -424,6 +424,10 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   3.719 Spotify-bevestigd. Nieuwe playlist "RadioScrobbler - NPO Radio 2
   Top 90" (90 nummers); bijgewerkt: Zeilsteen +3/−3, KD Sunday morning
   ongewijzigd, Vrijdagavond +13/−13.
+- **2026-10-02 (volledige sync)**: 7.588 nieuwe plays, `match_relisten.py`
+  (126 songs, 103 kandidaten), `match_tracks.py` (524 Spotify, 62 ReccoBeats;
+  budget op): 4.147 Spotify-bevestigd. Playlists: Zeilsteen +8/−8, KD Sunday
+  morning ongewijzigd, NPO Radio 2 +7/−7, Vrijdagavond +3/−3.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
@@ -474,7 +478,7 @@ niet per se de opname die echt gedraaid is.
 
 Onderzocht: Spotify's eigen `popularity`-veld is sinds de februari 2026 API-
 wijzigingen niet meer beschikbaar voor Development Mode-apps (bevestigd,
-zie `RECCOBEATS.md`/Les 6-omgeving). **ReccoBeats geeft wél een
+zie `RECCOBEATS.md`/RS-006-omgeving). **ReccoBeats geeft wél een
 `popularity`-score** (los van Spotify's beperking, getest en werkend) —
 potentiële tie-breaker voor later, mocht dit in de praktijk echt een keer
 misgaan. Bewust niet nu gebouwd: dit was een doelbewust geconstrueerd
