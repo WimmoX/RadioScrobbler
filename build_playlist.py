@@ -27,14 +27,21 @@ from dotenv import load_dotenv
 import db
 import quota
 from resolve import Resolver
+from stations import STATIONS
 from sync_playlist import filter_liked, find_track_match, get_or_create_playlist, get_spotify_client, _batched
 
 LOG_DIR = "logs"
 LOOKAHEAD = 5   # look at most this many times --top candidates for tracks that have an id
 
 
-def top_tracks(conn, daynrs, dayparts, exclude_stations, limit):
+def top_tracks(conn, daynrs, dayparts, exclude_stations, limit, stations=()):
+    """`stations` (include) limits to those stations; `exclude_stations` drops
+    some from all. Prefer include for a station playlist: an exclude list
+    silently lets in every station added later."""
     where, params = [], []
+    if stations:
+        where.append(f"station_slug IN ({','.join('?' * len(stations))})")
+        params.extend(stations)
     if daynrs:
         where.append(f"daynr IN ({','.join('?' * len(daynrs))})")
         params.extend(daynrs)
@@ -88,25 +95,32 @@ def main():
                          help="ma=1..zo=7, herhaalbaar (OR). Leeg = alle dagen.")
     parser.add_argument("--daypart", type=int, action="append", default=[],
                          help="0=nacht 1=ochtend 2=middag 3=avond, herhaalbaar (OR). Leeg = hele dag.")
+    parser.add_argument("--station", action="append", default=[],
+                         help="Alleen deze zender-ID, herhaalbaar (OR). Leeg = alle zenders.")
     parser.add_argument("--exclude-station", action="append", default=[],
-                         help="Zender-ID uitsluiten, herhaalbaar")
+                         help="Zender-ID uitsluiten, herhaalbaar (voor een mix van 'alles behalve')")
     parser.add_argument("--top", type=int, default=30)
     parser.add_argument("--playlist-key", default=None,
                          help="Lokale sleutel om deze playlist te tracken (default: afgeleid van de naam)")
     args = parser.parse_args()
+    unknown = [st for st in args.station + args.exclude_station if st not in STATIONS]
+    if unknown:   # a typo would otherwise silently give an empty or too-wide playlist
+        parser.error(f"onbekende zender(s): {', '.join(unknown)} (bekend: {', '.join(STATIONS)})")
 
     load_dotenv()
     db_path = os.environ.get("DB_PATH", "data/radioscrobbler.db")
     conn = db.connect(db_path)
     playlist_key = args.playlist_key or _slugify(args.playlist_name)
 
-    candidates = top_tracks(conn, args.daynr, args.daypart, args.exclude_station, args.top * LOOKAHEAD)
+    candidates = top_tracks(conn, args.daynr, args.daypart, args.exclude_station, args.top * LOOKAHEAD,
+                            stations=args.station)
 
     sp = get_spotify_client()
     budget = quota.SearchBudget(conn)
     resolver = Resolver(conn, sp, budget, find_track_match, total=len(candidates))
     log_lines = [f"Kandidaten: {len(candidates)} (daynr={args.daynr or 'alle'}, "
-                 f"daypart={args.daypart or 'alle'}, exclude={args.exclude_station}), "
+                 f"daypart={args.daypart or 'alle'}, station={args.station or 'alle'}, "
+                 f"exclude={args.exclude_station}), "
                  f"gezocht naar {args.top} nummers met een Spotify-id"]
 
     ordered_uris, scanned = pick_tracks(resolver, candidates, args.top, log_lines)
