@@ -428,11 +428,17 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (126 songs, 103 kandidaten), `match_tracks.py` (524 Spotify, 62 ReccoBeats;
   budget op): 4.147 Spotify-bevestigd. Playlists: Zeilsteen +8/−8, KD Sunday
   morning ongewijzigd, NPO Radio 2 +7/−7, Vrijdagavond +3/−3.
+- **2026-10-05 (Studio Brussel)**: zender `be/studiobrussel` toegevoegd
+  (OnlineRadioBox, dus max 7 dagen terug); 2.058 plays. `match_tracks.py
+  be/studiobrussel`: 587 Spotify, 40 ReccoBeats. Nieuwe playlist
+  "RadioScrobbler - StuBru Top 90" (90 nummers). De andere vier playlists
+  sluiten StuBru nu ook uit (`--exclude-station be/studiobrussel`).
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
 zelfde opties als bij het aanmaken): Zeilsteen Top 90, Kink Distortion Sunday
-morning, NPO Radio 2 Top 90 (nieuw op 2026-09-29) en Vrijdagavond (was van
+morning, NPO Radio 2 Top 90 (nieuw op 2026-09-29), StuBru Top 90 (nieuw op
+2026-10-05) en Vrijdagavond (was van
 24 t/m 29 sept bevroren). De playlists per zender (`sync_playlist.py`: Penguin
 Classics, KINK Classics, KINK Distortion, Zeilsteen Radio, SLAM! Non Stop, NPO
 Radio 2) en "RadioScrobbled" worden niet meer bijgewerkt; ze blijven op
@@ -441,17 +447,20 @@ Spotify staan zoals ze op 2026-09-24 waren.
 ```bash
 .venv/bin/python3 build_playlist.py "RadioScrobbler - Zeilsteen Top 90" --top 90 \
   --exclude-station pingclass --exclude-station kinkclassics --exclude-station kinkdistortion \
-  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm
+  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm --exclude-station be/studiobrussel
 .venv/bin/python3 build_playlist.py "RadioScrobbler - Kink Distortion Sunday morning" \
   --daynr 7 --daypart 1 --top 90 \
   --exclude-station pingclass --exclude-station kinkclassics --exclude-station zeilsteen \
-  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm
+  --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm --exclude-station be/studiobrussel
 .venv/bin/python3 build_playlist.py "RadioScrobbler - NPO Radio 2 Top 90" --top 90 \
   --exclude-station pingclass --exclude-station kinkclassics --exclude-station kinkdistortion \
-  --exclude-station zeilsteen --exclude-station slamnonst --exclude-station npo3fm
+  --exclude-station zeilsteen --exclude-station slamnonst --exclude-station npo3fm --exclude-station be/studiobrussel
 .venv/bin/python3 build_playlist.py "RadioScrobbler - Vrijdagavond" --daynr 5 --daypart 3 --top 30 \
   --exclude-station kinkdistortion --exclude-station zeilsteen --exclude-station slamnonst \
-  --exclude-station radio2 --exclude-station npo3fm
+  --exclude-station radio2 --exclude-station npo3fm --exclude-station be/studiobrussel
+.venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90" --top 90 \
+  --exclude-station pingclass --exclude-station kinkclassics --exclude-station kinkdistortion \
+  --exclude-station zeilsteen --exclude-station slamnonst --exclude-station radio2 --exclude-station npo3fm
 ```
 
 ## Openstaand: "Verbannen Nummers"-playlist (nog niet gebouwd, wacht op akkoord)

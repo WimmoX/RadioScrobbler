@@ -12,6 +12,7 @@ STATIONS = {
     "slamnonst": "SLAM! Non Stop",
     "radio2": "NPO Radio 2",
     "npo3fm": "NPO 3FM",
+    "be/studiobrussel": "Studio Brussel",
 }
 
 # Stations whose history is scraped from relisten.nl (see relisten.py) instead
