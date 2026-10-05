@@ -6,7 +6,7 @@ Order: the local cache first, then Spotify's own Search while its budget
 lasts (quota.py), then ReccoBeats once it doesn't (no quota of its own
 observed so far — only its ~2s per lookup slows us down).
 
-What may be cached (LessonsLearned.md, Les 13): a "no match" is a claim
+What may be cached (LessonsLearned.md, RS-013): a "no match" is a claim
 about one source, and is only recorded for the source that actually looked.
   - Spotify looked and found nothing -> track_match(service='spotify', NULL)
   - ReccoBeats looked and found nothing -> track_match(service='reccobeats', NULL)

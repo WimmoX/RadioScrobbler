@@ -3,7 +3,15 @@
 Problemen die we al eens tegenkwamen en opgelost hebben, zodat we er niet
 nog een keer tegenaan lopen. Zie ook `PROGRESS.md` voor de bredere context.
 
-**Les 1 — Spotify rate limit door ongethrottelde Search-calls.**
+**Vaste ID's.** Elke les heeft een vast ID (`RS-001`, `RS-002`, …), net als een
+ADR. Het nummer zegt niets over volgorde of belang. Een achterhaalde les krijgt
+status `vervallen` en houdt zijn nummer; een nieuwe les krijgt het volgende
+vrije nummer (nu: `RS-019`). Code en docs verwijzen naar het ID
+(`# zie RS-010`). Hier staan alleen lessen over de code; lessen over de
+omgeving (containers, poorten, auth) staan in SilverBullet onder
+`Selfhosting/Lessen/`.
+
+**RS-001 — Spotify rate limit door ongethrottelde Search-calls.**
 De allereerste versie zocht alle (~2000) unieke nummers achter elkaar op via
 de Spotify Search API zonder pauze. Spotify gaf een 429, en spotipy's interne
 retry-logica bleef daarna zonder wachttijd herhalen ("Retry will occur after:
@@ -16,13 +24,13 @@ zorgt dat een nummer maar één keer ooit opgezocht hoeft te worden.
 → Zelfde `_call_with_retry`-aanpak nu ook hergebruikt voor andere externe
 API's (zie `RECCOBEATS.md`), in plaats van het opnieuw uit te vinden.
 
-**Les 2 — "Live" (nu-spelend) regel gaf elke scrape een nieuwe duplicate.**
+**RS-002 — "Live" (nu-spelend) regel gaf elke scrape een nieuwe duplicate.**
 De rij voor het nu spelende nummer heeft geen vaste tijd ("Live" i.p.v.
 "17:14"), dus we vulden zelf `datetime.now()` in — tot op de microseconde
 nauwkeurig, waardoor elke scrape een net iets ander tijdstip gaf en de
 PRIMARY KEY-dedup niet werkte. Fix: afronden op de minuut, net als de rest.
 
-**Les 3 — Site-eigen data is niet altijd de makkelijkste bron.**
+**RS-003 — Site-eigen data is niet altijd de makkelijkste bron.**
 Reverse-engineeren van Pinguin Radio's eigen Angular-app (Supabase-backend,
 Firebase, etc.) kostte tijd en leverde uiteindelijk niks bruikbaars op zonder
 een browser die JS uitvoert. Een externe aggregator (OnlineRadioBox) bleek
@@ -36,7 +44,7 @@ wél gewoon server-rendered en dus prima te scrapen. En de eigenlijke API
 foutmeldingen terug die de verplichte parameters verraadden — soms is
 gewoon de API zelf aanroepen sneller dan de documentatie proberen te lezen.
 
-**Les 4 — Jingles/station-IDs filteren is zender-specifiek.**
+**RS-004 — Jingles/station-IDs filteren is zender-specifiek.**
 Pinguin Radio logt eigen jingles als "PINGUIN - TOTH 5" e.d.; die filteren we
 met een simpele prefix-check op het artiestveld (`JINGLE_PREFIXES`). Bij KINK
 kwamen in de steekproef geen vergelijkbare troep-regels voor, dus daar is
@@ -44,8 +52,8 @@ kwamen in de steekproef geen vergelijkbare troep-regels voor, dus daar is
 per ongeluk echte artiesten wegfilteren (bv. "The Kinks") — filter dus zo
 specifiek mogelijk.
 
-**Les 5 — Onze eigen 429-retry-logica werd overruled door spotipy's eigen,
-onzichtbare retry-mechanisme.** Ook ná Les 1 (met `_call_with_retry`/
+**RS-005 — Onze eigen 429-retry-logica werd overruled door spotipy's eigen,
+onzichtbare retry-mechanisme.** Ook ná RS-001 (met `_call_with_retry`/
 `retry.py` netjes op orde) liep een simpele test met 30 nummers alsnog vast:
 het script hing muurstil, zonder enige eigen "rate limited, wachten..."-print.
 Oorzaak: `spotipy.Spotify()` heeft standaard zélf een ingebouwde retry
@@ -62,8 +70,8 @@ duidelijke melding in plaats van er stilzwijgend op te gaan liggen wachten.
 zich ook echt aan onze eigen pacing/zichtbaarheid houdt — anders lijkt het
 script "vast te hangen" zonder enige uitleg waarom.
 
-**Les 6 — Playlist aanmaken gaf een kale 403 Forbidden, los van scope/rate
-limit.** Na het oplossen van Les 5 liep `get_or_create_playlist()` alsnog
+**RS-006 — Playlist aanmaken gaf een kale 403 Forbidden, los van scope/rate
+limit.** Na het oplossen van RS-005 liep `get_or_create_playlist()` alsnog
 vast op `sp.user_playlist_create(...)`, met een 403 zonder verdere uitleg
 ("Forbidden") — geen scope-probleem (scope klopte, getest), geen rate limit.
 Oorzaak: Spotify heeft in **februari 2026** het oude
@@ -77,7 +85,7 @@ foutmelding + "2026", niet door verder te gokken met API-calls.
 → Let op `DeprecationWarning`s van libraries als spotipy; die wijzen vaak
 vooruit naar precies dit soort breaking changes bij de onderliggende API.
 
-**Les 7 — `find_track_uri()` vertrouwde blind op Spotify's resultaat #1, wat
+**RS-007 — `find_track_uri()` vertrouwde blind op Spotify's resultaat #1, wat
 een keer een fout nummer opleverde.** "Royal Blood - 10 over 10" (radio-
 schrijfwijze) matchte op "Come on Over" i.p.v. het juiste "Ten Over Ten" —
 terwijl "Ten Over Ten" wél als eerste resultaat in dezelfde zoekrespons zat.
@@ -99,7 +107,7 @@ editie), verder geen regressies.
 fixen, maar draai de nieuwe logica over *alle* bestaande matches heen om te
 zien of je niet per ongeluk iets anders kapotmaakt.
 
-**Vervolg op Les 7 — de strengere matching wees eerst te veel goede matches
+**Vervolg op RS-007 — de strengere matching wees eerst te veel goede matches
 af.** Bij het aanvullen van de playlist bleek de nieuwe logica ineens 7 van
 de 14 nieuwe kandidaten af te wijzen — te veel om toeval te zijn. Twee extra
 bugs gevonden:
@@ -122,7 +130,7 @@ bugs gevonden:
      gelijkenis — dus bij twijfel de simpelste/exactste match, niet de eerste
      die toevallig langskomt.
 
-**Vervolg op Les 7 — Spotify's zoekresultaten voor obscure/underground
+**Vervolg op RS-007 — Spotify's zoekresultaten voor obscure/underground
 artiesten zijn soms gewoon niet stabiel tussen twee identieke calls.**
 "corto.alto - Noblehill" en "JGrrey - bedbug" matchten de ene keer wél
 correct, een paar minuten later leverde exact dezelfde zoekopdracht andere
@@ -131,7 +139,7 @@ serverside-ranking bij Spotify zelf voor dunbezaaide metadata. Niet iets om
 tegen te vechten met nog meer logica; gewoon zo'n nummer overslaan en een
 ander kandidaat-nummer proberen is prima.
 
-**Vervolg op Les 7 — bandnamen mét "&"/"/" erin werden onterecht als twee
+**Vervolg op RS-007 — bandnamen mét "&"/"/" erin werden onterecht als twee
 artiesten gesplitst.** Bekende nummers als "Echo & The Bunnymen - The
 Killing Moon" en "AC/DC - You Shook Me All Night Long" faalden, want
 `_ARTIST_SEPARATORS` splitste "Echo & The Bunnymen" op de "&" (bedoeld voor
@@ -152,7 +160,7 @@ als "Bonobo & Joy Crookes" bleven goed werken).
 teken soms gewoon *onderdeel* is van de ene, ongesplitste naam. Check beide
 interpretaties in plaats van te moeten kiezen welke van tevoren.
 
-**Les 8 — `PRAGMA table_info` verbergt generated/virtual kolommen, wat een
+**RS-008 — `PRAGMA table_info` verbergt generated/virtual kolommen, wat een
 migratie-check in een oneindige crash-loop had kunnen laten lopen.** Bij het
 toevoegen van `daynr`/`hr`/`daypart` als *generated columns* (afgeleid van
 `played_at`, zie hierboven) bleek SQLite geen `STORED` generated column toe
@@ -175,7 +183,7 @@ feilloos, dus zonder die tweede test was dit pas bij de volgende scriptrun
 achter elkaar te draaien, niet maar één keer — "het werkte de eerste keer"
 zegt niets over idempotentie.
 
-**Les 9 — `GET /v1/tracks` (batch, meerdere ID's tegelijk) geeft 403 voor
+**RS-009 — `GET /v1/tracks` (batch, meerdere ID's tegelijk) geeft 403 voor
 Development Mode-apps; `GET /v1/tracks/{id}` (enkelvoud) werkt gewoon.**
 Bij het normaliseren van `spotify_matches` naar aparte `artists`/`tracks`/
 `track_artists`/`track_match`-tabellen (zie hierboven) moest voor 107 al
@@ -186,7 +194,7 @@ een kale 403 Forbidden. Eerst gecontroleerd of het misschien weer een
 scope- of rate-limit-probleem was (nee, beide uitgesloten), toen simpelweg
 `sp.track(één_id)` op dezelfde ID geprobeerd: werkte meteen. Blijkbaar is
 het batch-endpoint (net als eerder de audio-features- en popularity-
-endpoints, zie Les 6 / `RECCOBEATS.md`) verder ingeperkt voor onze
+endpoints, zie RS-006 / `RECCOBEATS.md`) verder ingeperkt voor onze
 toegangsklasse dan het single-item endpoint. Fix: gewoon 107 losse calls
 i.p.v. 3 batch-calls — met onze bestaande throttling/retry kostte dat een
 paar seconden extra, geen enkel probleem.
@@ -195,7 +203,7 @@ en er iets vreemd 403't, test dan altijd eerst de single-item-variant voor
 je verder zoekt naar scope/auth-fouten — de twee endpoints kunnen
 losstaand van elkaar ingeperkt zijn.
 
-**Les 10 — `retries=0` (Les 5) loste het "urenlang stil blokkeren"-probleem
+**RS-010 — `retries=0` (RS-005) loste het "urenlang stil blokkeren"-probleem
 op, maar verborg daarbij de échte `Retry-After` en `reason` van élke 429.**
 Bij het bouwen van een self-calibrerend quota-systeem (zie `quota.py`)
 bleek `e.headers.get("Retry-After", 1)` steeds op de fallback-waarde `1`
@@ -226,7 +234,7 @@ volledig intact blijft in dat pad — een library kan retries uitzetten en
 tegelijk stilzwijgend informatie laten verdwijnen via een ander pad.
 
 **Feature: self-calibrerend Search-quota-budget (`quota.py`).** *(Vervangen
-op 2026-09-24 door een vaste limiet van 650, zie Les 17.)* Spotify
+op 2026-09-24 door een vaste limiet van 650, zie RS-017.)* Spotify
 publiceert het quotum voor Development Mode-apps niet (en het kan
 wijzigen), dus i.p.v. blind een vast getal aan te houden, ontdekken we het
 empirisch: een run die zijn eigen zelfopgelegde limiet opbrengt zónder een
@@ -237,7 +245,7 @@ aantal calls dat in de afgelopen 24 uur daadwerkelijk lukte (snap-to-
 ceiling) en onthoudt tot wanneer we geblokkeerd zijn — een volgende run
 checkt dat *voordat* er ook maar één Spotify-call gedaan wordt. Gestart op
 300 calls/24u (zie eerdere overweging), en meteen bij het bouwen bevestigd
-tegen de echte, actieve blokkade van vandaag (zie Les 10 hierboven).
+tegen de echte, actieve blokkade van vandaag (zie RS-010 hierboven).
 
 *Bugfix achteraf:* de eerste versie verhoogde de limiet bij élke run zonder
 blokkade, ook als die run maar een paar tientallen calls deed en de limiet
@@ -250,9 +258,9 @@ is de enige situatie met echt bewijs dat er ruimte over is.
 je de grens hebt opgezocht, niet gewoon "er ging niets mis" — die twee
 lijken op elkaar maar zijn niet hetzelfde bewijs.
 
-**Les 11 — ReccoBeats als fallback-bron, en een matching-eigenaardigheid
+**RS-011 — ReccoBeats als fallback-bron, en een matching-eigenaardigheid
 die er niet bij Spotify is.** Toen Spotify's eigen Search geblokkeerd was
-(zie Les 10), bleek `api.reccobeats.com/v1/track/search` een bruikbare,
+(zie RS-010), bleek `api.reccobeats.com/v1/track/search` een bruikbare,
 gratis, ongeauthenticeerde tweede bron — geeft altijd een Spotify-URI
 terug zodra hij iets vindt. Twee dingen die anders werken dan bij Spotify:
 1. **`searchText` is (vrij) letterlijk, niet fuzzy.** `"{artist} {title}"`
@@ -263,7 +271,7 @@ terug zodra hij iets vindt. Twee dingen die anders werken dan bij Spotify:
    alleen (met een grotere pagina, `size=50`, voor betere dekking) en laat
    onze eigen `best_candidate()`/artiest-matching de juiste artiest eruit
    filteren — precies dezelfde aanpak als bij Spotify's eigen, soms-
-   onbetrouwbare ranking (Les 7).
+   onbetrouwbare ranking (RS-007).
 2. **Circulaire import bij hergebruik van de matching-logica.** `reccobeats.py`
    heeft dezelfde `best_candidate()`-logica nodig als `sync_playlist.py`,
    maar `sync_playlist.py` moet op zijn beurt `reccobeats` kunnen
@@ -299,7 +307,7 @@ onvoorziene edge case (hier: een simpele lengte-eis) mag nooit de hele
 batch laten crashen — vang fouten per item af, niet alleen per verwachte
 foutcode (429).
 
-**Les 12 — Een primary key veranderen in SQLite: tabel opnieuw opbouwen,
+**RS-012 — Een primary key veranderen in SQLite: tabel opnieuw opbouwen,
 en de ouder-tabel nooit hernoemen.** Voor issue #2 (database los van
 Spotify) moesten vier tabellen van `spotify_uri` naar `track_id` als
 sleutel. SQLite kan geen primary key aanpassen met `ALTER TABLE`, dus
@@ -324,7 +332,7 @@ migratie testen op een *kopie* (twee keer achter elkaar draaien, zie Les
 8), en vergelijk de inhoud via de nieuwe API met een snapshot van vóór de
 migratie — rijaantallen alleen zeggen niet dat de inhoud klopt.
 
-**Les 13 — Een "geen match" mag alleen gecachet worden door de bron die het
+**RS-013 — Een "geen match" mag alleen gecachet worden door de bron die het
 echt heeft geprobeerd.** Tijdens de eerste echte Spotify-run na de ban
 (`sync_playlist.py pingclass`) raakte Spotify's eigen budget op na 300
 calls en nam ReccoBeats het over voor de rest. Bij een ReccoBeats-miss
@@ -347,9 +355,9 @@ níéts vindt, mag nooit "niets" als definitief antwoord van de primaire bron
 laten doorgaan. En: een teller die uit een logboek wordt afgeleid, is
 alleen zo goed als het logboek compleet is.
 
-*Vervolg op Les 13 (2026-09-20, `resolve.py`):* dezelfde beslislogica
+*Vervolg op RS-013 (2026-09-20, `resolve.py`):* dezelfde beslislogica
 ("welke bron vragen we, en wat mag er gecachet worden") stond dubbel in
-`sync_playlist.py` en `build_playlist.py`, en de Les 13-bug moest daardoor
+`sync_playlist.py` en `build_playlist.py`, en de RS-013-bug moest daardoor
 op twee plekken worden gerepareerd. Nu staat het op één plek
 (`resolve.py`, klasse `Resolver`) en gebruiken beide scripts die. Tegelijk
 opgelost (issue #3): een ReccoBeats-miss wordt onthouden als
@@ -363,10 +371,10 @@ verstreken tijd), omdat een stille run van 15+ minuten er "bevroren" uitziet.
 → Logica die bepaalt wat je als waar opslaat, hoort op één plek te staan;
 twee kopieën repareer je uiteindelijk één keer te weinig.
 
-**Les 14 — Twee bronnen voor dezelfde afspeelgeschiedenis dedupliceren is
+**RS-014 — Twee bronnen voor dezelfde afspeelgeschiedenis dedupliceren is
 geen kwestie van dezelfde sleutel.** Relisten.nl als tweede bron naast
 OnlineRadioBox: de PRIMARY KEY van `plays` (zender, artiest, titel,
-tijdstip) leek genoeg, ook met tijdstippen op de minuut (Les 2). Gemeten op
+tijdstip) leek genoeg, ook met tijdstippen op de minuut (RS-002). Gemeten op
 één Radio 2-dag (272 plays in beide bronnen): slechts 12% viel op dezelfde
 minuut; de rest week 1–3 minuten af (relisten loopt voor). En de tekst
 verschilt: accenten (Tiësto/Tiesto), `&`/`,`/`Ft.`, "Cult, The"/"The Cult",
@@ -384,7 +392,7 @@ Bijkomend: de dagpagina van relisten bevat ook zijbalk-"nieuwe tracks" met
 een andere datum — filter op datum. En: een externe koppeling (relisten →
 Spotify-id) is een *kandidaat*, geen waarheid; ~7% fout in een steekproef.
 
-**Les 15 — Gegarbelde brontekst: meet per aanpak wat het oplevert, en
+**RS-015 — Gegarbelde brontekst: meet per aanpak wat het oplevert, en
 hergebruik zoekresultaten die je al hebt.** Ticket #4 (Zeilsteen matcht maar
 50%): de missers bleken vooral tekstproblemen. Getest op 200 willekeurige
 échte ReccoBeats-missers (van 903 waar Spotify nog niets over gezegd had),
@@ -411,10 +419,10 @@ voor die eerste moet Spotify het doen.
 voorkomen (steekproef van echte missers), bouw dan alleen wat meetbaar
 oplevert, en laat een miss niet permanent zijn als het algoritme verandert.
 
-**Les 16 — Een storing van een externe bron is geen "geen match".** De
+**RS-016 — Een storing van een externe bron is geen "geen match".** De
 ReccoBeats-run over 2.832 nummers crashte na ~950 nummers op één
 `ReadTimeout` (`requests.exceptions` werd nergens afgevangen: alleen
-HTTP-statuscodes waren afgehandeld, zie het vervolg op Les 11). Erger dan de
+HTTP-statuscodes waren afgehandeld, zie het vervolg op RS-011). Erger dan de
 crash was wat er bijna mis ging: een 5xx werd als "geen match" behandeld en
 dus onthouden — een storing van een uur zou honderden nummers blijvend als
 ReccoBeats-miss hebben afgeschreven. Nu: timeout/verbindingsfout/5xx wordt
@@ -428,7 +436,7 @@ gewoon opnieuw starten en pakt hij de rest op.
 → Een cache mag alleen antwoorden onthouden, geen afwezigheid van een
 antwoord: onderscheid "de bron zei nee" van "de bron zei niets".
 
-**Les 17 — Een "ophogen bij succes"-limiet loopt vanzelf tegen het plafond
+**RS-017 — Een "ophogen bij succes"-limiet loopt vanzelf tegen het plafond
 aan, en een batchlimiet kan onaangekondigd dalen.** Bij de volledige sync van
 2026-09-24 gingen twee dingen mis:
 1. **Liked-check crashte op 50 URI's.** `GET /me/library/contains` (spotipy's
@@ -439,7 +447,7 @@ aan, en een batchlimiet kan onaangekondigd dalen.** Bij de volledige sync van
    verwijderkandidaten crashten. De crash kwam vóór enige playlistwijziging,
    dus er stond niets half. Fix: `LIKED_CHECK_BATCH = 40` in
    `sync_playlist.py` (ook gebruikt door `build_playlist.py`).
-2. **Het zelf-calibrerende budget (Les 10) duwde zichzelf in een blokkade.**
+2. **Het zelf-calibrerende budget (RS-010) duwde zichzelf in een blokkade.**
    `match_tracks.py` maakte de limiet op, en daarna deed elke
    `sync_playlist.py`-run (zes achter elkaar) er +25 bij en maakte die ook
    op: 475 → ~700 calls in 24 uur, en toen een echte `QUOTA_EXCEEDED` (tot de
@@ -452,12 +460,12 @@ eindeloos tegenaan te blijven zitten: zodra het plafond gemeten is, zet de
 limiet vast er net onder. En: test batchgroottes bij een verdacht 400 met een
 paar losse aantallen (20/40/41) in plaats van te gokken.
 
-**Les 18 — Ook Spotify heeft storingen, en die zijn geen "geen match".** Bij
+**RS-018 — Ook Spotify heeft storingen, en die zijn geen "geen match".** Bij
 `match_tracks.py` op 2026-09-26 gaf Spotify's Search na ~265 nummers een
 `502 Bad Gateway` ("An unexpected error occurred. Please try again later.").
 Onze retry (`retry.py`) kende alleen 429, dus de hele run stopte. Een directe
 herstart liep zonder problemen: het was een voorbijgaande storing aan
-Spotify's kant. Fix, zelfde regel als Les 16 voor ReccoBeats: een 5xx,
+Spotify's kant. Fix, zelfde regel als RS-016 voor ReccoBeats: een 5xx,
 timeout of verbindingsfout wordt `quota.SpotifyUnavailable`; een Search-call
 wordt daarna tot drie keer opnieuw geprobeerd (2, 5, 15 s), en lukt het dan
 nog niet, dan slaat de `Resolver` het nummer over zonder iets over Spotify op

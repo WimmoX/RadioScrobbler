@@ -5,7 +5,7 @@ over Spotify's Web API, specifiek vanuit het perspectief van een
 **Development Mode-app** (zoals deze — geen Extended Quota Mode, dat vereist
 250.000+ maandelijkse actieve gebruikers, onhaalbaar voor een hobbyproject).
 Details en de context waarin we dit ontdekten staan in `LessonsLearned.md`
-(Les 5, 6, 9, 10, 11) — dit bestand is de opgeschoonde, doorzoekbare
+(RS-005, RS-006, RS-009, RS-010, RS-011) — dit bestand is de opgeschoonde, doorzoekbare
 naslag-versie daarvan.
 
 ## Toegangsniveau & quota
@@ -22,7 +22,7 @@ naslag-versie daarvan.
   - **Quota**: een veel langduriger, ongepubliceerd dagbudget. Een 429
     hierdoor bevat sinds juli 2026 een JSON-body met
     `"error": {"reason": "QUOTA_EXCEEDED", ...}`.
-- **Empirisch vastgesteld** (2026-09-19, zie Les 10): een quota-blokkade is
+- **Empirisch vastgesteld** (2026-09-19, zie RS-010): een quota-blokkade is
   géén rollend venster waarbij oude calls één voor één "wegvallen" — het is
   een **vaste teller die aftelt naar één vast toekomstig resetmoment**
   (gemeten met 15s nauwkeurigheid over bijna 8 uur). Duur bij dat incident:
@@ -38,7 +38,7 @@ naslag-versie daarvan.
   `QUOTA_EXCEEDED` bij ~700 calls in 24 uur. Sindsdien een **vaste** limiet
   van **650 calls per rollende 24u** (`quota.CALL_LIMIT`), die niet meer
   vanzelf omhoog of omlaag gaat. (Daarvoor: zelf-calibrerend, start 300,
-  +25 per run die de limiet opmaakte — zie Les 10.)
+  +25 per run die de limiet opmaakte — zie RS-010.)
 - **Quota-buckets**: verschillende soorten endpoints lijken een apart
   budget te hebben. Empirisch bevestigd: tijdens een actieve Search-quota-
   blokkade werkten playlists lezen/toevoegen/verwijderen gewoon door. Ga er

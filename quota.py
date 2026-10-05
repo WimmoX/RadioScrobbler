@@ -2,7 +2,7 @@
 
 Spotify doesn't publish the Development Mode quota for Search. We used to
 probe it (+25 per run that used up its limit, snap down on a real block, see
-LessonsLearned.md Les 10), but on 2026-09-24 a real QUOTA_EXCEEDED came at
+LessonsLearned.md RS-010), but on 2026-09-24 a real QUOTA_EXCEEDED came at
 ~700 calls in 24h. The limit is now fixed at CALL_LIMIT, safely below that,
 and never changes by itself. A real block still stops all Search calls until
 Spotify's Retry-After has passed.
@@ -35,7 +35,7 @@ class QuotaBlocked(Exception):
 class SpotifyUnavailable(Exception):
     """Spotify could not answer (5xx, timeout, connection error), even after a
     few retries. That is NOT "no match": nothing may be cached about the track
-    (same rule as reccobeats.SearchFailed, LessonsLearned.md Les 16)."""
+    (same rule as reccobeats.SearchFailed, LessonsLearned.md RS-016)."""
 
 
 class SearchBudget:

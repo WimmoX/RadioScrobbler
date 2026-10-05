@@ -1,6 +1,6 @@
 """Search ReccoBeats for a track by artist/title — a free, unauthenticated
 fallback for when Spotify's own Search is rate-limited or quota-blocked
-(see quota.py, LessonsLearned.md Les 10-11).
+(see quota.py, LessonsLearned.md RS-010/RS-011).
 
 ReccoBeats' /v1/track/search already returns a Spotify href per hit, so a
 match here doubles as a candidate Spotify URI — but it's unverified until

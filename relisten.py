@@ -5,7 +5,7 @@ play carries a relisten song id, which can be turned into a Spotify track id
 
 One request per day, the whole day is on the page. Plays are returned in the
 same shape as scraper.py's, with `played_at` rounded down to the minute so a
-play seen by both sources gets the same primary key in `plays` (Les 2).
+play seen by both sources gets the same primary key in `plays` (RS-002).
 """
 import re
 import time

@@ -1,6 +1,6 @@
 """Shared retry-with-backoff for external APIs that respond 429 Too Many Requests.
 
-See LessonsLearned.md ("Les 1") for why this exists as one shared
+See LessonsLearned.md ("RS-001") for why this exists as one shared
 implementation instead of a copy per API client: an unthrottled retry loop
 against Spotify's Search API once triggered a ~24h lockout.
 """

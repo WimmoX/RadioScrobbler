@@ -31,11 +31,11 @@ SEARCH_RETRY_WAITS = (2, 5, 15)   # seconds before each retry of a Search call S
 
 
 def get_spotify_client() -> spotipy.Spotify:
-    # retries=0/status_retries=0 (Les 5): stop spotipy's own urllib3-level
+    # retries=0/status_retries=0 (RS-005): stop spotipy's own urllib3-level
     # retry from sleeping out a 429's Retry-After *inside* the HTTP call,
     # invisibly, for minutes to hours.
     #
-    # status_forcelist=[999] (Les 10): with retries=0, urllib3's adapter
+    # status_forcelist=[999] (RS-010): with retries=0, urllib3's adapter
     # still *intercepts* any status in its forcelist (default includes 429)
     # before handing control back — and because total=0 leaves no retries
     # to actually perform, it raises requests.exceptions.RetryError instead
@@ -177,7 +177,7 @@ def main():
     db_path = os.environ.get("DB_PATH", "data/radioscrobbler.db")
 
     conn = db.connect(db_path)
-    # played_at is stored with minute precision (see LessonsLearned.md, Les 2);
+    # played_at is stored with minute precision (see LessonsLearned.md, RS-002);
     # round the cutoff the same way so the boundary comparison is apples-to-apples.
     since = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).replace(second=0, microsecond=0)
     tracks = mq.sort_by_popularity(conn, db.recent_unique_tracks(conn, station_slug, since))

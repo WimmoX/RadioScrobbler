@@ -91,7 +91,7 @@ Veldbetekenis (identiek aan het oude Spotify-schema):
 ### `GET /v1/track/search?searchText=...&size=...`
 Tekst-zoekfunctie — bruikbaar als gratis, ongeauthenticeerde fallback voor
 Spotify's eigen Search wanneer die geblokkeerd is (zie
-`LessonsLearned.md`, Les 11).
+`LessonsLearned.md`, RS-011).
 
 ```
 curl "https://api.reccobeats.com/v1/track/search?searchText=Bright+Eyes&size=50"
@@ -151,4 +151,4 @@ eerst `fetch_audio_features.py` over alle gematchte tracks draaien.
 ## Ook in gebruik
 - `reccobeats.py:search_track()` — fallback-zoekpad als Spotify's Search-
   budget op is, en proactief via `match_reccobeats_backlog.py` /
-  stap 3 van `match_tracks.py` (Les 11, 15, 16). Geeft ook de `isrc` mee.
+  stap 3 van `match_tracks.py` (RS-011, RS-015, RS-016). Geeft ook de `isrc` mee.
