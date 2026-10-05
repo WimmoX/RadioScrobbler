@@ -440,6 +440,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   Daarna de matchvolgorde omgedraaid: eerst ReccoBeats voor alle nummers
   zonder id, dan één Spotify-wachtrij op aantal plays (zie Scripts). Faalt
   ReccoBeats drie keer op rij, dan gaat de run zonder verder. 46 tests.
+- **2026-10-05 (volledige sync)**: acht zenders gescrapet (6.755 nieuwe plays
+  voor de zeven oude). De StuBru-scrape crashte: het nummer dat live draait
+  heeft op OnlineRadioBox geen tijd maar een label in de taal van de pagina,
+  "Live" (nl) maar "En direct" (be); de code kende alleen "Live". Gefixt:
+  alles wat geen `HH:MM` is, is op dag 0 het live-nummer (op eerdere dagen
+  overgeslagen). `match_tracks.py` met de nieuwe volgorde: 214 ReccoBeats-
+  lookups, Spotify-budget was al op (StuBru die middag). Playlists: Zeilsteen
+  +8/−8, KD +10/−10, Radio 2 +6/−6, Vrijdagavond +4/−4, StuBru ongewijzigd.
+  48 tests.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,

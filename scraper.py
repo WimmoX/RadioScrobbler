@@ -1,10 +1,12 @@
 """Scrape recently played tracks for a radio station from OnlineRadioBox."""
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
 
+_TIME = re.compile(r"^(\d{1,2}):(\d{2})$")
 BASE_URL = "https://onlineradiobox.com/{locale}/{slug}/playlist/{day}"
 DEFAULT_LOCALE = "nl"
 HEADERS = {
@@ -67,11 +69,16 @@ def _parse_day(station: str, day: int) -> list[Play]:
             continue
 
         time_text = time_cell.get_text(strip=True)
-        if time_text == "Live":
+        match = _TIME.match(time_text)
+        if match:
+            hour, minute = map(int, match.groups())
+            played_at = datetime.combine(date, datetime.min.time()).replace(hour=hour, minute=minute)
+        elif day == 0:
+            # The track playing right now has a label instead of a time, in the
+            # page's language: "Live" (nl), "En direct" (be), ...
             played_at = datetime.now().replace(second=0, microsecond=0)
         else:
-            hour, minute = map(int, time_text.split(":"))
-            played_at = datetime.combine(date, datetime.min.time()).replace(hour=hour, minute=minute)
+            continue
 
         plays.append(Play(artist=artist, title=title, played_at=played_at))
 
