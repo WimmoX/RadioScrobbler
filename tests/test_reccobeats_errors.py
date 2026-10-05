@@ -63,3 +63,18 @@ def test_the_resolver_records_nothing_when_reccobeats_does_not_answer(conn, monk
     assert r.resolve("Some Artist", "Some Song") == (None, "untried")
     assert r.reccobeats_errors == 1
     assert db.get_cached_match(conn, "Some Artist", "Some Song", "reccobeats") == (False, None)   # not cached as a miss
+
+
+def test_the_resolver_stops_asking_reccobeats_after_failures_in_a_row(conn, monkeypatch):
+    calls = []
+
+    def down(artist, title):
+        calls.append(1)
+        raise reccobeats.SearchFailed("timeout")
+
+    monkeypatch.setattr(reccobeats, "search_track", down)
+    r = Resolver(conn, None, None, None, progress_every=None)
+    r.spotify_available = False
+    for i in range(5):
+        r.resolve("Artist", f"Song {i}")
+    assert len(calls) == 3 and not r.allow_fallback          # gave up after three, nothing cached

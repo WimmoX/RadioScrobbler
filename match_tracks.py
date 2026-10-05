@@ -4,14 +4,15 @@ tables (track_match / track_services), so playlists can be designed
 separately afterwards (e.g. build_playlist.py).
 
 Tracks are handled most-played first (matching_queue.py: popularity = number
-of plays, all history). Spotify's scarce Search budget (quota.py) is spent in
-two steps, then ReccoBeats picks up what is left:
-  1. new tracks — no id at all yet — up to 80% of the daily budget;
-  2. verifying tracks that only have a candidate id (from ReccoBeats or
-     Relisten), with whatever budget is left (so an unused part of step 1 is
-     not wasted);
-  3. ReccoBeats (~2 s per lookup, no Spotify budget) for tracks that still
-     have no id, in the same order.
+of plays, all history). Two steps (since 2026-10-05):
+  1. ReccoBeats (free, ~2 s per lookup) for every new track — no id at all
+     yet — so as many tracks as possible get a candidate id without touching
+     Spotify's budget;
+  2. one Spotify queue, most played first, with the scarce Search budget
+     (quota.py): candidates to verify (from ReccoBeats or Relisten) and the
+     new tracks ReccoBeats could not find, which only Spotify can.
+Before, Spotify went to new tracks first (80% of the budget), so a track
+played once got Spotify before a candidate played twenty times.
 A track played once and not seen for 90 days no longer gets Spotify calls.
 Prints a progress line every 200 tracks.
 
@@ -35,7 +36,6 @@ from resolve import Resolver
 from stations import STATIONS
 from sync_playlist import find_track_match, get_spotify_client
 
-NEW_SHARE = 0.8  # share of the Spotify budget for tracks without any id; the rest verifies candidates
 
 
 def _run(resolver, items, conn, limit, needs_spotify):
@@ -76,7 +76,8 @@ def main():
     stations = args.stations or list(STATIONS)
     queue = mq.build_queue(conn, stations, args.days)
     now = datetime.now()
-    fresh_new = [i for i in queue if i.state == mq.NEW and not i.expired(now)]
+    new = [i for i in queue if i.state == mq.NEW]
+    fresh_new = [i for i in new if not i.expired(now)]
     verify = [i for i in queue if i.state == mq.VERIFY and not i.expired(now)]
     expired = sum(1 for i in queue if i.state != mq.DONE and i.expired(now))
     print(f"{len(queue)} tracks ({', '.join(stations)}; "
@@ -86,7 +87,8 @@ def main():
           f"{expired} one-off tracks older than 90 days skipped for Spotify", flush=True)
 
     if args.explain is not None:
-        for name, items in (("new", fresh_new), ("verify", verify)):
+        spotify_queue = [i for i in queue if i.state in (mq.NEW, mq.VERIFY) and not i.expired(now)]
+        for name, items in (("new (ReccoBeats first)", new), ("Spotify queue", spotify_queue)):
             print(f"-- first {args.explain} of '{name}':")
             for item in items[:args.explain]:
                 print(f"  {item.reason()}: {item.artist} - {item.title}"
@@ -103,26 +105,23 @@ def main():
     resolver = Resolver(conn, sp, budget, find_track_match, total=0)
     started = time.monotonic()
 
-    # 1. new tracks, Spotify only, up to the new-track share of the budget
-    resolver.allow_fallback = False
-    budget.set_bucket("new", NEW_SHARE)
-    resolver.start_phase("1. new tracks via Spotify", len(fresh_new))
-    keep_going = _run(resolver, fresh_new, conn, args.limit, needs_spotify=True)
+    # 1. ReccoBeats for every track without any id (Spotify's budget is not touched)
+    resolver.spotify_available = False
+    resolver.allow_fallback = True
+    resolver.start_phase("1. new tracks via ReccoBeats", len(new))
+    keep_going = _run(resolver, new, conn, args.limit, needs_spotify=False)
 
-    # 2. verify candidates with the rest of the Spotify budget (the bucket has no cap of its own)
+    # 2. one Spotify queue, most played first: candidates to verify plus what
+    #    ReccoBeats could not find. Re-read: step 1 turned many NEW into VERIFY.
     if keep_going and not budget.blocked and not budget.exhausted():
+        now = datetime.now()
+        spotify_queue = [i for i in mq.build_queue(conn, stations, args.days)
+                         if i.state in (mq.NEW, mq.VERIFY) and not i.expired(now)]
         resolver.spotify_available = True
-        budget.set_bucket("verify", None)
-        resolver.start_phase("2. verifying candidates via Spotify", len(verify))
-        keep_going = _run(resolver, verify, conn, args.limit, needs_spotify=True)
-
-    # 3. ReccoBeats for tracks that still have no id (Spotify's budget is not touched)
-    if keep_going:
-        pending = [i for i in mq.build_queue(conn, stations, args.days) if i.state == mq.NEW]
-        resolver.spotify_available = False
-        resolver.allow_fallback = True
-        resolver.start_phase("3. remaining new tracks via ReccoBeats", len(pending))
-        _run(resolver, pending, conn, args.limit, needs_spotify=False)
+        resolver.allow_fallback = False
+        budget.set_bucket("queue", None)
+        resolver.start_phase("2. Spotify queue (verify + not found by ReccoBeats)", len(spotify_queue))
+        _run(resolver, spotify_queue, conn, args.limit, needs_spotify=True)
     budget.finish()
 
     elapsed = int(time.monotonic() - started)

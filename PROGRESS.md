@@ -91,9 +91,12 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   matcht gespeelde nummers en **doet verder niets**: geen playlists aangemaakt
   of gewijzigd, alleen de lokale match-tabellen gevuld. Zonder argumenten: alle
   zenders, alle historie. Volgorde en budget volgen `matching_queue.py` (zie
-  hieronder): meest gespeeld eerst; stap 1 nieuwe nummers via Spotify (max 80%
-  van het Spotify-budget), stap 2 kandidaten verifiëren met de rest, stap 3
-  ReccoBeats voor nummers die nog geen id hebben. Voortgangsregel elke 200
+  hieronder): meest gespeeld eerst. Sinds 2026-10-05: stap 1 ReccoBeats voor
+  álle nummers zonder id (gratis, ~2 s per nummer), stap 2 één Spotify-
+  wachtrij op aantal plays met kandidaten om te verifiëren én de nummers die
+  ReccoBeats niet vond (die kan alleen Spotify vinden). Daarvoor kregen
+  nieuwe nummers eerst 80% van het Spotify-budget, waardoor een nummer met
+  1 play vóór een kandidaat met 20 plays ging. Voortgangsregel elke 200
   nummers. `--explain N` toont alleen de eerste N per stap en waarom (aantal
   plays, laatst gespeeld, staat), zonder iets te matchen.
 - **`matching_queue.py`** (module) — één gedeelde volgorde voor alles wat
@@ -109,9 +112,9 @@ De functies in `db.py` nemen en geven nog steeds de id's van een dienst (Spotify
   meer (filter, geen verwijdering). Staten: `new` (geen Spotify-antwoord),
   `verify` (alleen een kandidaat-id), `done` (Spotify heeft gesproken).
 - **`quota.py` — buckets:** `search_calls.bucket` markeert waarvoor een call is
-  gebruikt (`new`/`verify`); een bucket met een aandeel (`new`, 80%) stopt met
-  `BucketExhausted`. De `verify`-bucket heeft geen eigen plafond, dus wat
-  `new` niet gebruikt stroomt door.
+  gebruikt; een bucket met een aandeel stopt met `BucketExhausted`.
+  `match_tracks.py` gebruikt sinds 2026-10-05 één bucket `queue` zonder eigen
+  plafond (vroeger `new` 80% / `verify`); het mechanisme blijft beschikbaar.
 - **`scrape.py [station] [--source auto|relisten|onlineradiobox] [--days N]`**
   — haalt afspeelhistorie op en slaat die op in `plays`. Bron per zender:
   standaard relisten.nl voor zenders in `stations.RELISTEN_SLUGS` (Radio 2,
@@ -434,7 +437,9 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   "RadioScrobbler - StuBru Top 90" (90 nummers). Daarna `build_playlist.py
   --station` (include, herhaalbaar; RS-PLAY-01 deels) gebouwd en alle vijf
   playlist-commando's omgezet; een onbekend zender-ID geeft nu een fout.
-  45 tests.
+  Daarna de matchvolgorde omgedraaid: eerst ReccoBeats voor alle nummers
+  zonder id, dan één Spotify-wachtrij op aantal plays (zie Scripts). Faalt
+  ReccoBeats drie keer op rij, dan gaat de run zonder verder. 46 tests.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,

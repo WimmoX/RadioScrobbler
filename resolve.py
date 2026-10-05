@@ -22,7 +22,7 @@ import quota
 import reccobeats
 
 PROGRESS_EVERY = 200
-MAX_SPOTIFY_FAILURES_IN_A_ROW = 3
+MAX_FAILURES_IN_A_ROW = 3
 
 
 class Resolver:
@@ -46,6 +46,7 @@ class Resolver:
         self.reccobeats_errors = 0
         self.spotify_errors = 0
         self._spotify_failures_in_a_row = 0
+        self._reccobeats_failures_in_a_row = 0
         self.started = time.monotonic()
 
     @property
@@ -85,7 +86,7 @@ class Resolver:
                 # a bad query, so stop asking it for the rest of this run.
                 self.spotify_errors += 1
                 self._spotify_failures_in_a_row += 1
-                if self._spotify_failures_in_a_row >= MAX_SPOTIFY_FAILURES_IN_A_ROW:
+                if self._spotify_failures_in_a_row >= MAX_FAILURES_IN_A_ROW:
                     print("  Spotify keeps failing; continuing without it for this run", flush=True)
                     self.spotify_available = False
             else:
@@ -109,7 +110,12 @@ class Resolver:
             match = reccobeats.search_track(artist, title)
         except reccobeats.SearchFailed:
             self.reccobeats_errors += 1        # ReccoBeats didn't answer: not a miss, record nothing
+            self._reccobeats_failures_in_a_row += 1
+            if self._reccobeats_failures_in_a_row >= MAX_FAILURES_IN_A_ROW:
+                print("  ReccoBeats keeps failing; continuing without it for this run", flush=True)
+                self.allow_fallback = False
             return None, "untried"
+        self._reccobeats_failures_in_a_row = 0
         self.reccobeats_lookups += 1
         if match is None:
             db.save_match(self.conn, artist, title, None, service="reccobeats")
