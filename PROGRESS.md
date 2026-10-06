@@ -449,6 +449,12 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   lookups, Spotify-budget was al op (StuBru die middag). Playlists: Zeilsteen
   +8/−8, KD +10/−10, Radio 2 +6/−6, Vrijdagavond +4/−4, StuBru ongewijzigd.
   48 tests.
+- **2026-10-06 (volledige sync)**: 3.236 nieuwe plays (acht zenders, StuBru-
+  scrape nu zonder crash). Eerste run met de nieuwe matchvolgorde én Spotify-
+  budget: 121 ReccoBeats, daarna 616 Spotify-lookups uit één wachtrij (was
+  ~480-530 per dag: een kandidaat verifiëren kost meestal één call, een nieuw
+  nummer vaak twee). 5.616 Spotify-bevestigd (+592). Playlists: Zeilsteen
+  +8/−8, KD ongewijzigd, Radio 2 +6/−6, Vrijdagavond +1/−1, StuBru +16/−16.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
