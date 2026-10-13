@@ -467,12 +467,16 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   ReccoBeats, 622 Spotify (één 502, opgevangen door de retry). 7.403
   Spotify-bevestigd (+601), 11.357 kandidaten. Playlists: Zeilsteen +1/−1,
   KD +12/−11, Radio 2 +4/−4, Vrijdagavond ongewijzigd, StuBru +16/−16.
+- **2026-10-13**: nieuwe playlist "RadioScrobbler - StuBru Top 90 Zondag"
+  (hele zondag, `--daynr 7`), meteen 90 nummers. Basis is nog dun: twee
+  zondagen (4 en 11 okt, ~640 plays), dus de top bestaat vooral uit nummers
+  die twee keer gedraaid zijn. Wordt elke week scherper.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
 zelfde opties als bij het aanmaken): Zeilsteen Top 90, Kink Distortion Sunday
 morning, NPO Radio 2 Top 90 (nieuw op 2026-09-29), StuBru Top 90 (nieuw op
-2026-10-05) en Vrijdagavond (was van
+2026-10-05), StuBru Top 90 Zondag (nieuw op 2026-10-13) en Vrijdagavond (was van
 24 t/m 29 sept bevroren). De playlists per zender (`sync_playlist.py`: Penguin
 Classics, KINK Classics, KINK Distortion, Zeilsteen Radio, SLAM! Non Stop, NPO
 Radio 2) en "RadioScrobbled" worden niet meer bijgewerkt; ze blijven op
@@ -486,6 +490,8 @@ Spotify staan zoals ze op 2026-09-24 waren.
 .venv/bin/python3 build_playlist.py "RadioScrobbler - Vrijdagavond" --daynr 5 --daypart 3 --top 30 \
   --station pingclass --station kinkclassics
 .venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90" --top 90 --station be/studiobrussel
+.venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90 Zondag" --daynr 7 --top 90 \
+  --station be/studiobrussel
 ```
 Sinds 2026-10-05 met `--station` (include) i.p.v. een lijst `--exclude-station`
 voor alle andere zenders: een nieuwe zender hoeft dan niet aan elke playlist
