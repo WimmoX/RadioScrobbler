@@ -471,12 +471,20 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   (hele zondag, `--daynr 7`), meteen 90 nummers. Basis is nog dun: twee
   zondagen (4 en 11 okt, ~640 plays), dus de top bestaat vooral uit nummers
   die twee keer gedraaid zijn. Wordt elke week scherper.
+- **2026-10-13 (later)**: StuBru Top 90 Zondag vervangen door **StuBru Top 90
+  Zondagochtend** (`--daypart 1`, 06–12 uur). Op Spotify hernoemd, dus dezelfde
+  link; de DB-sleutel is mee hernoemd in `playlists` en `playlist_tracks`.
+  Nieuw: **Zeilsteen Top 90 Zondagochtend** en **NPO Radio 2 Top 90
+  Zondagochtend**. **Vrijdagavond** heeft NPO Radio 2 erbij gekregen en is nu een top 90
+  (+60). Basis zondagochtend: StuBru 2 ochtenden/170 plays (dus vrijwel alles
+  wat gedraaid is), Zeilsteen 5/509, Radio 2 16/1.004.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
 zelfde opties als bij het aanmaken): Zeilsteen Top 90, Kink Distortion Sunday
 morning, NPO Radio 2 Top 90 (nieuw op 2026-09-29), StuBru Top 90 (nieuw op
-2026-10-05), StuBru Top 90 Zondag (nieuw op 2026-10-13) en Vrijdagavond (was van
+2026-10-05), de drie Zondagochtend-playlists (StuBru, Zeilsteen en NPO Radio 2,
+nieuw op 2026-10-13) en Vrijdagavond (was van
 24 t/m 29 sept bevroren). De playlists per zender (`sync_playlist.py`: Penguin
 Classics, KINK Classics, KINK Distortion, Zeilsteen Radio, SLAM! Non Stop, NPO
 Radio 2) en "RadioScrobbled" worden niet meer bijgewerkt; ze blijven op
@@ -487,12 +495,17 @@ Spotify staan zoals ze op 2026-09-24 waren.
 .venv/bin/python3 build_playlist.py "RadioScrobbler - Kink Distortion Sunday morning" \
   --daynr 7 --daypart 1 --top 90 --station kinkdistortion
 .venv/bin/python3 build_playlist.py "RadioScrobbler - NPO Radio 2 Top 90" --top 90 --station radio2
-.venv/bin/python3 build_playlist.py "RadioScrobbler - Vrijdagavond" --daynr 5 --daypart 3 --top 30 \
-  --station pingclass --station kinkclassics
+.venv/bin/python3 build_playlist.py "RadioScrobbler - Vrijdagavond" --daynr 5 --daypart 3 --top 90 \
+  --station pingclass --station kinkclassics --station radio2
 .venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90" --top 90 --station be/studiobrussel
-.venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90 Zondag" --daynr 7 --top 90 \
-  --station be/studiobrussel
+.venv/bin/python3 build_playlist.py "RadioScrobbler - StuBru Top 90 Zondagochtend" --daynr 7 --daypart 1 \
+  --top 90 --station be/studiobrussel
+.venv/bin/python3 build_playlist.py "RadioScrobbler - Zeilsteen Top 90 Zondagochtend" --daynr 7 --daypart 1 \
+  --top 90 --station zeilsteen
+.venv/bin/python3 build_playlist.py "RadioScrobbler - NPO Radio 2 Top 90 Zondagochtend" --daynr 7 --daypart 1 \
+  --top 90 --station radio2
 ```
+Afspraak (2026-10-13): nieuwe of gewijzigde playlists zijn altijd een top 90.
 Sinds 2026-10-05 met `--station` (include) i.p.v. een lijst `--exclude-station`
 voor alle andere zenders: een nieuwe zender hoeft dan niet aan elke playlist
 te worden toegevoegd. Geverifieerd: dezelfde kandidaten als met de oude
