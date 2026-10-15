@@ -478,6 +478,11 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   Zondagochtend**. **Vrijdagavond** heeft NPO Radio 2 erbij gekregen en is nu een top 90
   (+60). Basis zondagochtend: StuBru 2 ochtenden/170 plays (dus vrijwel alles
   wat gedraaid is), Zeilsteen 5/509, Radio 2 16/1.004.
+- **2026-10-15 (volledige sync, 8 playlists)**: 8.183 nieuwe plays (drie
+  dagen); 339 ReccoBeats, 614 Spotify. 7.990 Spotify-bevestigd (+587), 11.240
+  kandidaten. Playlists: Zeilsteen +7/−7, Radio 2 +4/−4, StuBru +16/−16,
+  StuBru Zo +1/−1, Radio 2 Zo +1/−1; KD, Vrijdagavond en Zeilsteen Zo
+  ongewijzigd (geen nieuwe zondag/vrijdag).
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
