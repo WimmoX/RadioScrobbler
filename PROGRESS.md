@@ -483,6 +483,11 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   kandidaten. Playlists: Zeilsteen +7/−7, Radio 2 +4/−4, StuBru +16/−16,
   StuBru Zo +1/−1, Radio 2 Zo +1/−1; KD, Vrijdagavond en Zeilsteen Zo
   ongewijzigd (geen nieuwe zondag/vrijdag).
+- **2026-10-19 (volledige sync)**: 10.281 nieuwe plays (vier dagen); 279
+  ReccoBeats, 618 Spotify. 8.581 Spotify-bevestigd (+591), 11.129 kandidaten.
+  Playlists: Zeilsteen +2/−2, KD +10/−10, Radio 2 +5/−5, Vrijdagavond
+  +13/−13, StuBru +14/−13, StuBru Zo +33/−33, Zeilsteen Zo +16/−16, Radio 2
+  Zo +10/−10.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
