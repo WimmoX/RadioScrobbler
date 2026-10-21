@@ -488,6 +488,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   Playlists: Zeilsteen +2/−2, KD +10/−10, Radio 2 +5/−5, Vrijdagavond
   +13/−13, StuBru +14/−13, StuBru Zo +33/−33, Zeilsteen Zo +16/−16, Radio 2
   Zo +10/−10.
+- **2026-10-21 (volledige sync)**: 4.676 nieuwe plays (twee dagen); 138
+  ReccoBeats, 613 Spotify. 9.171 Spotify-bevestigd (+590), 10.877 kandidaten.
+  Playlists: Zeilsteen +3/−3, StuBru +4/−4, StuBru Zo +2/−2, rest +0/−0.
+  **Radio 2 crashte** op `playlist_add_items` (ConnectionResetError). Spotify
+  had de 5 adds en 5 removes wel uitgevoerd, maar `playlist_tracks` was nog
+  niet bijgewerkt. Een gewone rerun had de 5 nummers dubbel toegevoegd. Hersteld door de DB
+  gelijk te trekken met Spotify (scratchpad-script) en daarna opnieuw te bouwen: +0/−0,
+  Spotify = DB. Open: playlist-writes hebben geen retry en de DB loopt achter
+  bij een fout halverwege.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
