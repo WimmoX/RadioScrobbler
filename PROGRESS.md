@@ -497,6 +497,10 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   gelijk te trekken met Spotify (scratchpad-script) en daarna opnieuw te bouwen: +0/−0,
   Spotify = DB. Open: playlist-writes hebben geen retry en de DB loopt achter
   bij een fout halverwege.
+- **2026-10-23 (volledige sync)**: 5.391 nieuwe plays (twee dagen); 135
+  ReccoBeats, 617 Spotify. 9.761 Spotify-bevestigd (+590), 10.591 kandidaten.
+  Playlists: Zeilsteen +3/−3, Radio 2 +2/−2, StuBru +7/−8, StuBru Zo +1/−1,
+  Zeilsteen Zo +1/−1, rest +0/−0. Geen fouten.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
