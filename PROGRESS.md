@@ -512,6 +512,13 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   ReccoBeats, 592 Spotify. 10.906 Spotify-bevestigd (+569), 10.123 kandidaten.
   Playlists: Zeilsteen +2/−2, Radio 2 +3/−3, StuBru +10/−10, StuBru Zo +1/−1,
   Zeilsteen Zo +1/−1, rest +0/−0. Geen fouten.
+- **2026-10-31 (volledige sync)**: 10.189 nieuwe plays (vier dagen); 0
+  ReccoBeats, 608 Spotify. **ReccoBeats lag eruit**: HTTP 530 / Cloudflare
+  1033 (tunnel naar hun server onbereikbaar). Na 3 fouten op rij is de
+  fallback uitgezet, zoals bedoeld. De nieuwe nummers wachten op de volgende run;
+  de plays zelf staan veilig in de DB. 11.481 Spotify-bevestigd (+575), 9.878
+  kandidaten. Playlists: Zeilsteen +5/−5, Radio 2 +7/−7, Vrijdagavond
+  +12/−12, StuBru +7/−8, Radio 2 Zo +1/−1, rest +0/−0.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
