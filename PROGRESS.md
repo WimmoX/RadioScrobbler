@@ -519,6 +519,15 @@ foutmeldingen) — begin daar als je met de Spotify-integratie werkt.
   de plays zelf staan veilig in de DB. 11.481 Spotify-bevestigd (+575), 9.878
   kandidaten. Playlists: Zeilsteen +5/−5, Radio 2 +7/−7, Vrijdagavond
   +12/−12, StuBru +7/−8, Radio 2 Zo +1/−1, rest +0/−0.
+- **2026-11-07/08 (volledige sync, na precies een week)**: 19.397 nieuwe plays;
+  439 ReccoBeats (weer bereikbaar), 598 Spotify. 12.041 Spotify-bevestigd
+  (+560), 10.056 kandidaten (gestegen door de vele nieuwe nummers). **Gat:** za 31 okt
+  ~18:37–24:00 ontbreekt bij alle 8 zenders (~5,5 uur, schatting ~600 plays).
+  De vorige run was rond 18:37 en het scrape-venster begint nu op 1 nov 00:00.
+  Niet te herstellen. Geen playlist gebruikt zaterdagavond, dus alleen de Top 90's
+  missen marginaal wat. Les: binnen 6 dagen opnieuw draaien. Playlists:
+  Zeilsteen +4/−4, KD +12/−11, Radio 2 +6/−6, Vrijdagavond +21/−21, StuBru
+  +9/−9, StuBru Zo +19/−19, Zeilsteen Zo +13/−13, Radio 2 Zo +5/−5.
 
 ## Welke playlists worden bijgehouden (2026-09-29)
 Alle playlists die beginnen met **"RadioScrobbler - "** (via `build_playlist.py`,
